@@ -1,5 +1,5 @@
 import React from 'react';
-import { Github, Twitter, Telegram } from 'lucide-react';
+import { Github, Twitter, MessageCircle } from 'lucide-react';
 
 export function Footer() {
   return (
@@ -24,7 +24,7 @@ export function Footer() {
               rel="noopener noreferrer"
               className="text-gray-400 hover:text-near-purple transition-colors"
             >
-              <Telegram className="w-5 h-5" />
+              <MessageCircle className="w-5 h-5" />
             </a>
             <a 
               href="https://twitter.com/nearprotocol"
