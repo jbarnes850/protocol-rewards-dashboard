@@ -36,11 +36,13 @@ A dashboard for tracking the NEAR Protocol rewards program and managing develope
 ### Installation
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/near/rewards-dashboard.git
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
@@ -79,4 +81,3 @@ License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 Made with ❤️ by [@near](https://github.com/near)
-
