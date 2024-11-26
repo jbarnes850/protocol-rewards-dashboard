@@ -14,6 +14,8 @@ export function AuthCallback() {
     const error = searchParams.get('error');
     const error_description = searchParams.get('error_description');
 
+    console.log('Auth callback params:', { code, state, error, error_description });
+
     if (error || !code || !state) {
       toast.error(error_description || 'Failed to authenticate with GitHub');
       navigate('/');

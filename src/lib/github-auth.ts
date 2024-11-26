@@ -1,5 +1,3 @@
-import { Buffer } from 'buffer';
-
 const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID;
 const GITHUB_CLIENT_SECRET = import.meta.env.VITE_GITHUB_CLIENT_SECRET;
 const APP_URL = 'https://protocol-rewards-dashboard.vercel.app';
