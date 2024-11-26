@@ -12,25 +12,24 @@ export function AuthCallback() {
     const code = searchParams.get('code');
     const state = searchParams.get('state');
     const error = searchParams.get('error');
+    const error_description = searchParams.get('error_description');
 
-    if (error) {
-      toast.error('Failed to authenticate with GitHub');
+    if (error || !code || !state) {
+      toast.error(error_description || 'Failed to authenticate with GitHub');
       navigate('/');
       return;
     }
 
-    if (code && state) {
-      handleGitHubCallback(code, state)
-        .then(() => {
-          toast.success('Successfully connected with GitHub');
-          navigate('/');
-        })
-        .catch((err) => {
-          console.error('Auth error:', err);
-          toast.error('Authentication failed');
-          navigate('/');
-        });
-    }
+    handleGitHubCallback(code, state)
+      .then(() => {
+        toast.success('Successfully connected with GitHub');
+        navigate('/');
+      })
+      .catch((err) => {
+        console.error('Auth error:', err);
+        toast.error(err.message || 'Authentication failed');
+        navigate('/');
+      });
   }, [searchParams, navigate, handleGitHubCallback]);
 
   return (

@@ -3,9 +3,9 @@ import { Buffer } from 'buffer';
 const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID;
 const GITHUB_CLIENT_SECRET = import.meta.env.VITE_GITHUB_CLIENT_SECRET;
 const APP_URL = 'https://protocol-rewards-dashboard.vercel.app';
-const CALLBACK_PATH = '/github/callback';
 
 interface GitHubUser {
+  id: string;
   login: string;
   name: string;
   avatar_url: string;
@@ -31,7 +31,7 @@ export class GitHubAuth {
     
     const params = new URLSearchParams({
       client_id: GITHUB_CLIENT_ID,
-      redirect_uri: `${APP_URL}${CALLBACK_PATH}`,
+      redirect_uri: `${APP_URL}/auth/callback`,
       scope: 'read:user user:email repo',
       state: this.state,
       allow_signup: 'true'
@@ -56,7 +56,7 @@ export class GitHubAuth {
           client_id: GITHUB_CLIENT_ID,
           client_secret: GITHUB_CLIENT_SECRET,
           code,
-          redirect_uri: `${APP_URL}${CALLBACK_PATH}`,
+          redirect_uri: `${APP_URL}/auth/callback`,
         })
       });
 
@@ -76,8 +76,7 @@ export class GitHubAuth {
       const userResponse = await fetch('https://api.github.com/user', {
         headers: {
           'Authorization': `Bearer ${this.accessToken}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'X-GitHub-Api-Version': '2022-11-28'
+          'Accept': 'application/vnd.github.v3+json'
         }
       });
 
@@ -87,22 +86,12 @@ export class GitHubAuth {
 
       const userData = await userResponse.json();
 
-      const emailResponse = await fetch('https://api.github.com/user/emails', {
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'X-GitHub-Api-Version': '2022-11-28'
-        }
-      });
-
-      const emails = await emailResponse.json();
-      const primaryEmail = emails.find((email: any) => email.primary)?.email || userData.email;
-
       return {
+        id: userData.id,
         login: userData.login,
         name: userData.name || userData.login,
         avatar_url: userData.avatar_url,
-        email: primaryEmail
+        email: userData.email || ''
       };
     } catch (error) {
       console.error('GitHub authentication error:', error);
@@ -112,12 +101,16 @@ export class GitHubAuth {
     }
   }
 
-  async getRepositories(): Promise<any[]> {
+  getAccessToken(): string | null {
+    return this.accessToken;
+  }
+
+  async getCurrentUser(): Promise<GitHubUser> {
     if (!this.accessToken) {
       throw new Error('Not authenticated with GitHub');
     }
 
-    const response = await fetch('https://api.github.com/user/repos', {
+    const response = await fetch('https://api.github.com/user', {
       headers: {
         'Authorization': `Bearer ${this.accessToken}`,
         'Accept': 'application/vnd.github.v3+json'
@@ -125,14 +118,17 @@ export class GitHubAuth {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch repositories');
+      throw new Error('Failed to fetch user data');
     }
 
-    return response.json();
-  }
-
-  getAccessToken(): string | null {
-    return this.accessToken;
+    const userData = await response.json();
+    return {
+      id: userData.id,
+      login: userData.login,
+      name: userData.name || userData.login,
+      avatar_url: userData.avatar_url,
+      email: userData.email || ''
+    };
   }
 
   logout(): void {
