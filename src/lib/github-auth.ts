@@ -30,7 +30,7 @@ export class GitHubAuth {
     
     const params = new URLSearchParams({
       client_id: GITHUB_CLIENT_ID,
-      redirect_uri: `${APP_URL}/github/callback`,
+      redirect_uri: `${APP_URL}/auth/callback`,
       scope: 'read:user user:email repo',
       state: this.state,
       allow_signup: 'true'
@@ -41,7 +41,7 @@ export class GitHubAuth {
 
   async handleCallback(code: string, state: string): Promise<GitHubUser> {
     try {
-      if (state !== this.state) {
+      if (!this.state || state !== this.state) {
         throw new Error('Invalid state parameter');
       }
 
@@ -55,7 +55,7 @@ export class GitHubAuth {
           client_id: GITHUB_CLIENT_ID,
           client_secret: GITHUB_CLIENT_SECRET,
           code,
-          redirect_uri: `${APP_URL}/github/callback`,
+          redirect_uri: `${APP_URL}/auth/callback`,
         })
       });
 
@@ -66,6 +66,7 @@ export class GitHubAuth {
       const tokenData = await tokenResponse.json();
       
       if (tokenData.error) {
+        console.error('GitHub OAuth error:', tokenData.error_description);
         throw new Error(tokenData.error_description || 'Failed to get access token');
       }
 
@@ -135,6 +136,6 @@ export class GitHubAuth {
 
   logout(): void {
     this.accessToken = null;
-    // Could also redirect to GitHub's logout URL if needed
+    this.state = null;
   }
 }
