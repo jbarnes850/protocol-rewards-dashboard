@@ -2,7 +2,9 @@
 
 A dashboard for tracking the NEAR Protocol rewards program and managing developer contributions in the NEAR ecosystem.
 
-![Dashboard Preview](https://your-screenshot-url.png)
+<div align="center">
+  <img src="./public/og-image.png" alt="NEAR Protocol Rewards Dashboard" />
+</div>
 
 ## 🌟 Features
 

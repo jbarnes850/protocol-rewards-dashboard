@@ -2,6 +2,7 @@ import { Buffer } from 'buffer';
 
 const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID;
 const GITHUB_CLIENT_SECRET = import.meta.env.VITE_GITHUB_CLIENT_SECRET;
+const APP_URL = 'https://protocol-rewards-dashboard.vercel.app';
 
 interface GitHubUser {
   login: string;
@@ -13,6 +14,7 @@ interface GitHubUser {
 export class GitHubAuth {
   private static instance: GitHubAuth;
   private accessToken: string | null = null;
+  private state: string | null = null;
 
   private constructor() {}
 
@@ -24,20 +26,25 @@ export class GitHubAuth {
   }
 
   getLoginUrl(): string {
+    this.state = crypto.randomUUID();
+    
     const params = new URLSearchParams({
       client_id: GITHUB_CLIENT_ID,
-      redirect_uri: `${window.location.origin}/github/callback`,
+      redirect_uri: `${APP_URL}/github/callback`,
       scope: 'read:user user:email repo',
-      state: crypto.randomUUID(),
+      state: this.state,
       allow_signup: 'true'
     });
 
     return `https://github.com/login/oauth/authorize?${params.toString()}`;
   }
 
-  async handleCallback(code: string): Promise<GitHubUser> {
+  async handleCallback(code: string, state: string): Promise<GitHubUser> {
     try {
-      // Exchange code for access token
+      if (state !== this.state) {
+        throw new Error('Invalid state parameter');
+      }
+
       const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
         method: 'POST',
         headers: {
@@ -48,6 +55,7 @@ export class GitHubAuth {
           client_id: GITHUB_CLIENT_ID,
           client_secret: GITHUB_CLIENT_SECRET,
           code,
+          redirect_uri: `${APP_URL}/github/callback`,
         })
       });
 
@@ -63,11 +71,11 @@ export class GitHubAuth {
 
       this.accessToken = tokenData.access_token;
 
-      // Get user data with the token
       const userResponse = await fetch('https://api.github.com/user', {
         headers: {
           'Authorization': `Bearer ${this.accessToken}`,
-          'Accept': 'application/vnd.github.v3+json'
+          'Accept': 'application/vnd.github.v3+json',
+          'X-GitHub-Api-Version': '2022-11-28'
         }
       });
 
@@ -77,11 +85,11 @@ export class GitHubAuth {
 
       const userData = await userResponse.json();
 
-      // Get user email if not public
       const emailResponse = await fetch('https://api.github.com/user/emails', {
         headers: {
           'Authorization': `Bearer ${this.accessToken}`,
-          'Accept': 'application/vnd.github.v3+json'
+          'Accept': 'application/vnd.github.v3+json',
+          'X-GitHub-Api-Version': '2022-11-28'
         }
       });
 
@@ -97,6 +105,8 @@ export class GitHubAuth {
     } catch (error) {
       console.error('GitHub authentication error:', error);
       throw error;
+    } finally {
+      this.state = null;
     }
   }
 
