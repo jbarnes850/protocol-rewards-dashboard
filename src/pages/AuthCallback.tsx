@@ -10,6 +10,7 @@ export function AuthCallback() {
 
   useEffect(() => {
     const code = searchParams.get('code');
+    const state = searchParams.get('state');
     const error = searchParams.get('error');
 
     if (error) {
@@ -18,8 +19,8 @@ export function AuthCallback() {
       return;
     }
 
-    if (code) {
-      handleGitHubCallback(code)
+    if (code && state) {
+      handleGitHubCallback(code, state)
         .then(() => {
           toast.success('Successfully connected with GitHub');
           navigate('/');

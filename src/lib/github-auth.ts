@@ -3,6 +3,7 @@ import { Buffer } from 'buffer';
 const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID;
 const GITHUB_CLIENT_SECRET = import.meta.env.VITE_GITHUB_CLIENT_SECRET;
 const APP_URL = 'https://protocol-rewards-dashboard.vercel.app';
+const CALLBACK_PATH = '/github/callback';
 
 interface GitHubUser {
   login: string;
@@ -30,7 +31,7 @@ export class GitHubAuth {
     
     const params = new URLSearchParams({
       client_id: GITHUB_CLIENT_ID,
-      redirect_uri: `${APP_URL}/auth/callback`,
+      redirect_uri: `${APP_URL}${CALLBACK_PATH}`,
       scope: 'read:user user:email repo',
       state: this.state,
       allow_signup: 'true'
@@ -55,7 +56,7 @@ export class GitHubAuth {
           client_id: GITHUB_CLIENT_ID,
           client_secret: GITHUB_CLIENT_SECRET,
           code,
-          redirect_uri: `${APP_URL}/auth/callback`,
+          redirect_uri: `${APP_URL}${CALLBACK_PATH}`,
         })
       });
 

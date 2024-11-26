@@ -34,7 +34,7 @@ interface AuthContextType {
   logout: () => void;
   loading: boolean;
   isGitHubConnected: boolean;
-  handleGitHubCallback: (code: string) => Promise<void>;
+  handleGitHubCallback: (code: string, state: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -113,11 +113,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = githubAuth.getLoginUrl();
   };
 
-  const handleGitHubCallback = async (code: string) => {
+  const handleGitHubCallback = async (code: string, state: string) => {
     try {
-      const githubToken = await githubAuth.handleCallback(code);
+      const githubUser = await githubAuth.handleCallback(code, state);
       setIsGitHubConnected(true);
-      await correlateUserData(githubToken);
+      await correlateUserData(githubUser);
     } catch (error) {
       console.error('GitHub callback error:', error);
       throw error;

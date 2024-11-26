@@ -22,7 +22,7 @@ function App() {
                 <Header />
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
-                  <Route path="/auth/callback" element={<AuthCallback />} />
+                  <Route path="/github/callback" element={<AuthCallback />} />
                 </Routes>
                 <Toaster 
                   position="top-right" 
