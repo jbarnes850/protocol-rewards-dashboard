@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --near-purple: #9797ff;
+    --near-green: #00ec97;
+    --near-blue: #17d9d4;
+    --near-red: #ff7966;
+  }
+
+  body {
+    @apply bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white min-h-screen;
+    font-family: 'FK Grotesk', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Code highlighting */
+  .hljs {
+    @apply text-gray-300;
+  }
+
+  .hljs-keyword {
+    @apply text-near-purple;
+  }
+
+  .hljs-string {
+    @apply text-near-green;
+  }
+
+  .hljs-comment {
+    @apply text-gray-500;
+  }
+
+  .hljs-function {
+    @apply text-near-blue;
+  }
+
+  .hljs-variable {
+    @apply text-near-red;
+  }
+
+  .hljs-number {
+    @apply text-yellow-400;
+  }
+}
+
+@layer components {
+  .dashboard-card {
+    @apply bg-white/5 rounded-xl border border-white/10 overflow-hidden
+           hover:border-opacity-40 hover:border-[#9797ff] transition-all duration-200
+           shadow-lg shadow-black/20;
+  }
+
+  .metric-card {
+    @apply bg-white/5 rounded-lg p-3 sm:p-4 border border-white/10
+           hover:border-opacity-40 hover:border-[#9797ff] transition-all duration-200;
+  }
+
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-sm rounded-xl border border-white/10
+           hover:border-opacity-40 hover:border-[#9797ff] transition-all duration-200;
+  }
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
