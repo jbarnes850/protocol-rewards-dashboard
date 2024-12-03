@@ -58,6 +58,17 @@ export function Header() {
             {/* User section */}
             {user ? (
               <div className="flex items-center gap-2 sm:gap-4">
+                {/* Repository indicator - only show when a repo is tracked */}
+                {user.trackedRepository && (
+                  <div className="hidden md:flex items-center gap-2 px-3 py-1.5 
+                              bg-near-purple/5 border border-near-purple/10 rounded-lg">
+                    <Github className="w-4 h-4 text-near-purple" />
+                    <span className="text-sm text-near-purple font-medium">
+                      {user.trackedRepository.name}
+                    </span>
+                  </div>
+                )}
+                
                 <div className="hidden sm:flex items-center gap-2">
                   <img 
                     src={user.avatar} 

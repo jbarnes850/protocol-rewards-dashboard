@@ -1,4 +1,6 @@
 import React from 'react';
+import { useAuth } from '../providers/AuthProvider';
+import { RepoSelector } from '../components/RepoSelector';
 import { ProjectOverview } from '../components/ProjectOverview';
 import { PersonalProgress } from '../components/PersonalProgress';
 import { DeveloperMetrics } from '../components/DeveloperMetrics';
@@ -9,6 +11,13 @@ import { Footer } from '../components/Footer';
 import { NetworkStats } from '../components/NetworkStats';
 
 export function Dashboard() {
+  const { user } = useAuth();
+
+  // Show repo selector if user is logged in but hasn't selected a repo
+  if (user && !user.trackedRepository) {
+    return <RepoSelector />;
+  }
+
   return (
     <>
       <main className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 max-w-7xl">

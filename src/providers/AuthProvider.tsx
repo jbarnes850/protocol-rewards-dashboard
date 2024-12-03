@@ -26,6 +26,11 @@ interface User {
       users: number;
     };
   };
+  trackedRepository?: {
+    name: string;
+    fullName: string;
+    url: string;
+  };
 }
 
 interface AuthContextType {
@@ -35,6 +40,7 @@ interface AuthContextType {
   loading: boolean;
   isGitHubConnected: boolean;
   handleGitHubCallback: (code: string, state: string) => Promise<void>;
+  setTrackedRepository: (repoFullName: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -136,15 +142,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const setTrackedRepository = async (repoFullName: string) => {
+    try {
+      const repo = await githubAuth.setTrackedRepository(repoFullName);
+      updateUser({
+        trackedRepository: {
+          name: repo.name,
+          fullName: repo.full_name,
+          url: repo.html_url
+        }
+      });
+      toast.success(`Now tracking repository: ${repo.full_name}`);
+    } catch (error) {
+      console.error('Failed to set tracked repository:', error);
+      toast.error('Failed to set tracked repository');
+    }
+  };
+
   return (
     <AuthContext.Provider 
       value={{ 
         user, 
         loginWithGitHub,
         handleGitHubCallback,
-        logout, 
+        logout,
         loading,
-        isGitHubConnected
+        isGitHubConnected,
+        setTrackedRepository
       }}
     >
       {children}
