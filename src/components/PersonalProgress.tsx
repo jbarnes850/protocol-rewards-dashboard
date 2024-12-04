@@ -2,19 +2,38 @@ import React from 'react';
 import { TrendingUp, Zap, Code, GitPullRequest } from 'lucide-react';
 import { Progress } from './ui/Progress';
 import { Tooltip } from './ui/Tooltip';
+import { useMetrics } from '../providers/MetricsProvider';
 
 export function PersonalProgress() {
-  // Mock data - would come from API
-  const rewards = {
-    currentEarnings: 7500,
-    maxEarnings: 10000,
-    streakDays: 12,
-    daysUntilBonus: 3,
-    multiplier: 20,
-    tier: 'Gold',
-    githubActivity: 85,
-    contractUsage: 92,
+  const { metrics, loading } = useMetrics();
+
+  // Calculate tier based on total score
+  const getTier = (score: number) => {
+    if (score >= 90) return 'Platinum';
+    if (score >= 75) return 'Gold';
+    if (score >= 50) return 'Silver';
+    return 'Bronze';
   };
+
+  const currentScore = metrics?.score.total || 0;
+  const tier = getTier(currentScore);
+  const maxScore = 100;
+
+  // Calculate monthly earnings based on score (example calculation)
+  const maxEarnings = 10000;
+  const currentEarnings = Math.round((currentScore / maxScore) * maxEarnings);
+
+  if (loading) {
+    return (
+      <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-white/10 rounded w-1/3"></div>
+          <div className="h-4 bg-white/10 rounded w-1/2"></div>
+          <div className="h-20 bg-white/10 rounded"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white/5 rounded-xl p-6 border border-white/10">
@@ -25,7 +44,7 @@ export function PersonalProgress() {
         </div>
         <Tooltip content="Your current reward tier - keep contributing to level up">
           <div className="px-3 py-1.5 bg-near-purple/20 rounded-full">
-            <span className="text-sm text-near-purple">{rewards.tier} Tier</span>
+            <span className="text-sm text-near-purple">{tier} Tier</span>
           </div>
         </Tooltip>
       </div>
@@ -36,68 +55,43 @@ export function PersonalProgress() {
           <div className="flex justify-between items-baseline mb-2">
             <span className="text-gray-400">Monthly Progress</span>
             <div className="text-right">
-              <span className="text-2xl font-bold">${rewards.currentEarnings.toLocaleString()}</span>
-              <span className="text-gray-400 text-sm ml-1">/ ${rewards.maxEarnings.toLocaleString()}</span>
+              <span className="text-2xl font-bold">${currentEarnings.toLocaleString()}</span>
+              <span className="text-gray-400 text-sm ml-1">/ ${maxEarnings.toLocaleString()}</span>
             </div>
           </div>
           <Progress 
-            value={(rewards.currentEarnings / rewards.maxEarnings) * 100} 
+            value={currentScore} 
             className="mb-2"
           />
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Monthly Cap</span>
-            <span className="text-near-purple">{Math.round((rewards.currentEarnings / rewards.maxEarnings) * 100)}%</span>
-          </div>
-        </div>
-
-        {/* Streak & Multiplier */}
-        <div className="bg-white/5 p-4 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-medium flex items-center gap-2">
-                <Zap className="w-5 h-5 text-near-purple" />
-                {rewards.streakDays} Day Streak
-              </h3>
-              <p className="text-sm text-gray-400">
-                {rewards.daysUntilBonus} days until bonus rewards
-              </p>
-            </div>
-            <Tooltip content="Your current reward multiplier based on streak and quality">
-              <div className="text-right">
-                <div className="text-2xl font-bold text-near-green">+{rewards.multiplier}%</div>
-                <div className="text-sm text-gray-400">Reward Multiplier</div>
-              </div>
-            </Tooltip>
+            <span className="text-near-purple">{Math.round(currentScore)}%</span>
           </div>
         </div>
 
         {/* Activity Metrics */}
-        <div className="space-y-4">
-          <Tooltip content="Your GitHub contribution activity score">
-            <div className="bg-white/5 p-4 rounded-lg">
-              <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center gap-2">
-                  <GitPullRequest className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-400">GitHub Activity</span>
-                </div>
-                <span className="text-near-purple">{rewards.githubActivity}/100</span>
-              </div>
-              <Progress value={rewards.githubActivity} />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white/5 p-4 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <GitPullRequest className="w-4 h-4 text-near-purple" />
+              <span className="text-gray-400">Pull Requests</span>
             </div>
-          </Tooltip>
+            <div className="text-2xl font-bold">{metrics?.github.pullRequests.merged || 0}</div>
+            <div className="text-sm text-near-purple mt-1">
+              Score: {metrics?.score.breakdown.pullRequests || 0}
+            </div>
+          </div>
 
-          <Tooltip content="Usage and adoption of your deployed contracts">
-            <div className="bg-white/5 p-4 rounded-lg">
-              <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center gap-2">
-                  <Code className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-400">Contract Usage</span>
-                </div>
-                <span className="text-near-purple">{rewards.contractUsage}/100</span>
-              </div>
-              <Progress value={rewards.contractUsage} />
+          <div className="bg-white/5 p-4 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <Code className="w-4 h-4 text-near-purple" />
+              <span className="text-gray-400">Commits</span>
             </div>
-          </Tooltip>
+            <div className="text-2xl font-bold">{metrics?.github.commits.count || 0}</div>
+            <div className="text-sm text-near-purple mt-1">
+              Score: {metrics?.score.breakdown.commits || 0}
+            </div>
+          </div>
         </div>
       </div>
     </div>

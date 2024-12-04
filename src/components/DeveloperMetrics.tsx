@@ -1,6 +1,8 @@
 import React from 'react';
 import { Progress } from './ui/Progress';
 import { Tooltip } from './ui/Tooltip';
+import { useMetrics } from '../providers/MetricsProvider';
+import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 
 const TimeRangeSelector = () => (
   <select className="bg-white/5 text-sm rounded-lg px-3 py-2">
@@ -10,55 +12,106 @@ const TimeRangeSelector = () => (
   </select>
 );
 
-export const DeveloperMetrics: React.FC = () => {
-  return (
-    <div className="bg-white/5 rounded-xl p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Contribution Quality</h2>
-        <TimeRangeSelector />
-      </div>
+export function DeveloperMetrics() {
+  const { metrics, loading, error } = useMetrics();
 
-      <div className="space-y-4">
-        <div className="bg-white/5 p-4 rounded-lg">
-          <div className="flex justify-between mb-2">
-            <span className="text-gray-400">Overall Impact</span>
-            <Tooltip content="Combined score of code quality and user impact">
-              <span className="text-near-purple">89/100</span>
-            </Tooltip>
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div className="h-8 bg-white/10 rounded w-1/3 animate-pulse"></div>
+            <div className="h-8 bg-white/10 rounded w-1/4 animate-pulse"></div>
           </div>
-          <Progress value={89} className="mb-1" />
-          <div className="grid grid-cols-2 gap-4 mt-3 text-sm">
-            <Tooltip content="Measured by code reviews, test coverage, and documentation">
-              <div>
-                <div className="text-gray-400">Code Quality</div>
-                <div className="font-medium">85/100</div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-12 bg-white/10 rounded animate-pulse"></div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent>
+          <div className="text-red-400 p-4">
+            Failed to load developer metrics. Please try again later.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const categories = [
+    {
+      name: 'Pull Requests',
+      value: metrics?.github.pullRequests.merged || 0,
+      score: metrics?.score.breakdown.pullRequests || 0,
+      max: 100,
+      tooltip: 'Number of merged pull requests and their impact score',
+    },
+    {
+      name: 'Code Reviews',
+      value: metrics?.github.reviews.count || 0,
+      score: metrics?.score.breakdown.reviews || 0,
+      max: 100,
+      tooltip: 'Number of code reviews completed and their impact score',
+    },
+    {
+      name: 'Issue Management',
+      value: metrics?.github.issues.closed || 0,
+      score: metrics?.score.breakdown.issues || 0,
+      max: 100,
+      tooltip: 'Number of issues closed and their impact score',
+    },
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-center">
+          <CardTitle>Developer Impact</CardTitle>
+          <TimeRangeSelector />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-6">
+          {categories.map((category) => (
+            <Tooltip key={category.name} content={category.tooltip}>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-400">{category.name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-400">{category.value} items</span>
+                    <span className="text-sm text-near-purple">
+                      Score: {category.score}
+                    </span>
+                  </div>
+                </div>
+                <Progress value={(category.score / category.max) * 100} />
               </div>
             </Tooltip>
-            <Tooltip content="Based on adoption and usage of your contributions">
-              <div>
-                <div className="text-gray-400">User Impact</div>
-                <div className="font-medium">92/100</div>
-              </div>
-            </Tooltip>
+          ))}
+
+          <div className="mt-6 p-4 bg-white/5 rounded-lg">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm text-gray-400">Overall Impact Score</span>
+              <span className="text-lg font-bold text-near-purple">
+                {metrics?.score.total || 0}
+              </span>
+            </div>
+            <Progress 
+              value={metrics?.score.total || 0} 
+              className="h-2"
+            />
           </div>
         </div>
-
-        <Tooltip content="Percentage of contributions from unique developers">
-          <div className="bg-white/5 p-4 rounded-lg">
-            <div className="text-sm text-gray-400 mb-1">Collaboration Score</div>
-            <div className="text-xl font-bold">85%</div>
-            <Progress value={85} className="mt-2" />
-          </div>
-        </Tooltip>
-
-        <Tooltip content="Total value generated through your contributions">
-          <div className="bg-white/5 p-4 rounded-lg">
-            <div className="text-sm text-gray-400 mb-1">Value Generated</div>
-            <div className="text-xl font-bold">$1.5M</div>
-            <div className="text-sm text-near-green mt-1">↑ 36% vs last month</div>
-          </div>
-        </Tooltip>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
-};
+}

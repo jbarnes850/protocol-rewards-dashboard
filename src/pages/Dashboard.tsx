@@ -1,4 +1,3 @@
-import React from 'react';
 import { useAuth } from '../providers/AuthProvider';
 import { RepoSelector } from '../components/RepoSelector';
 import { ProjectOverview } from '../components/ProjectOverview';
