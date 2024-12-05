@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Terminal, Code, Rocket, ExternalLink, Copy, CheckCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';

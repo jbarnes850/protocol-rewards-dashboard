@@ -1,5 +1,4 @@
 const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID;
-const GITHUB_CLIENT_SECRET = import.meta.env.VITE_GITHUB_CLIENT_SECRET;
 const APP_URL = import.meta.env.DEV 
   ? 'http://localhost:5173'
   : 'https://protocol-rewards-dashboard.vercel.app';
@@ -24,7 +23,6 @@ interface GitHubUser {
 export class GitHubAuth {
   private static instance: GitHubAuth;
   private accessToken: string | null = null;
-  private state: string | null = null;
   private trackedRepository: GitHubRepository | null = null;
 
   private constructor() {}
@@ -37,86 +35,70 @@ export class GitHubAuth {
   }
 
   getLoginUrl(): string {
-    this.state = crypto.randomUUID();
-    localStorage.setItem('github_oauth_state', this.state);
+    const state = crypto.randomUUID();
+    localStorage.setItem('github_oauth_state', state);
     
     const params = new URLSearchParams({
       client_id: GITHUB_CLIENT_ID,
       redirect_uri: `${APP_URL}/auth/callback`,
       scope: 'read:user user:email repo',
-      state: this.state,
+      state,
       allow_signup: 'true'
     });
 
-    const url = `https://github.com/login/oauth/authorize?${params.toString()}`;
-    console.log('Generated GitHub OAuth URL:', url);
-    console.log('Using APP_URL:', APP_URL);
-    return url;
+    return `https://github.com/login/oauth/authorize?${params.toString()}`;
   }
 
   async handleCallback(code: string, state: string): Promise<GitHubUser> {
-    try {
-      const savedState = localStorage.getItem('github_oauth_state');
-      
-      if (!savedState || state !== savedState) {
-        throw new Error('Invalid state parameter');
-      }
-
-      localStorage.removeItem('github_oauth_state');
-
-      const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          client_id: GITHUB_CLIENT_ID,
-          client_secret: GITHUB_CLIENT_SECRET,
-          code,
-          redirect_uri: `${APP_URL}/auth/callback`,
-        })
-      });
-
-      if (!tokenResponse.ok) {
-        throw new Error('Failed to exchange code for token');
-      }
-
-      const tokenData = await tokenResponse.json();
-      
-      if (tokenData.error) {
-        console.error('GitHub OAuth error:', tokenData.error_description);
-        throw new Error(tokenData.error_description || 'Failed to get access token');
-      }
-
-      this.accessToken = tokenData.access_token;
-
-      const userResponse = await fetch('https://api.github.com/user', {
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-          'Accept': 'application/vnd.github.v3+json'
-        }
-      });
-
-      if (!userResponse.ok) {
-        throw new Error('Failed to fetch user data');
-      }
-
-      const userData = await userResponse.json();
-
-      return {
-        id: userData.id,
-        login: userData.login,
-        name: userData.name || userData.login,
-        avatar_url: userData.avatar_url,
-        email: userData.email || ''
-      };
-    } catch (error) {
-      console.error('GitHub authentication error:', error);
-      throw error;
-    } finally {
-      this.state = null;
+    const savedState = localStorage.getItem('github_oauth_state');
+    console.log('Saved state:', savedState, 'Received state:', state);
+    
+    if (!savedState || state !== savedState) {
+      throw new Error('Invalid state parameter');
     }
+    localStorage.removeItem('github_oauth_state');
+
+    const tokenResponse = await fetch('/api/github/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ code, state })
+    });
+
+    if (!tokenResponse.ok) {
+      throw new Error('Failed to exchange code for token');
+    }
+
+    const tokenData = await tokenResponse.json();
+    
+    if (tokenData.error) {
+      console.error('GitHub OAuth error:', tokenData.error_description);
+      throw new Error(tokenData.error_description || 'Failed to get access token');
+    }
+
+    this.accessToken = tokenData.access_token;
+
+    const userResponse = await fetch('https://api.github.com/user', {
+      headers: {
+        'Authorization': `Bearer ${this.accessToken}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    if (!userResponse.ok) {
+      throw new Error('Failed to fetch user data');
+    }
+
+    const userData = await userResponse.json();
+
+    return {
+      id: userData.id,
+      login: userData.login,
+      name: userData.name || userData.login,
+      avatar_url: userData.avatar_url,
+      email: userData.email || ''
+    };
   }
 
   getAccessToken(): string | null {
@@ -184,7 +166,6 @@ export class GitHubAuth {
 
   logout(): void {
     this.accessToken = null;
-    this.state = null;
     this.trackedRepository = null;
   }
 }
