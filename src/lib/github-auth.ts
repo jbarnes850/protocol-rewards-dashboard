@@ -1,7 +1,5 @@
 const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID;
-const APP_URL = import.meta.env.DEV 
-  ? 'http://localhost:5173'
-  : 'https://protocol-rewards-dashboard.vercel.app';
+const APP_URL = import.meta.env.VITE_APP_URL;
 
 interface GitHubRepository {
   id: number;
@@ -35,9 +33,14 @@ export class GitHubAuth {
   }
 
   getLoginUrl(): string {
-    const state = crypto.randomUUID();
-    sessionStorage.setItem('github_oauth_state', state);
-    console.log('Setting state:', state);
+    const state = crypto.getRandomValues(new Uint8Array(32))
+      .reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '');
+    
+    const stateObj = {
+      value: state,
+      expires: Date.now() + (5 * 60 * 1000) // 5 minutes
+    };
+    sessionStorage.setItem('github_oauth_state', JSON.stringify(stateObj));
     
     const params = new URLSearchParams({
       client_id: GITHUB_CLIENT_ID,
@@ -45,16 +48,24 @@ export class GitHubAuth {
       scope: 'read:user user:email repo',
       state,
       allow_signup: 'true'
-    });
+    } as Record<string, string>);
 
     return `https://github.com/login/oauth/authorize?${params.toString()}`;
   }
 
   async handleCallback(code: string, state: string): Promise<GitHubUser> {
-    const savedState = sessionStorage.getItem('github_oauth_state');
-    console.log('Checking states:', { savedState, receivedState: state });
-    
-    if (!savedState || state !== savedState) {
+    const storedStateJson = sessionStorage.getItem('github_oauth_state');
+    if (!storedStateJson) {
+      throw new Error('No state found');
+    }
+
+    const storedState = JSON.parse(storedStateJson);
+    if (Date.now() > storedState.expires) {
+      sessionStorage.removeItem('github_oauth_state');
+      throw new Error('State expired');
+    }
+
+    if (state !== storedState.value) {
       throw new Error('Invalid state parameter');
     }
     sessionStorage.removeItem('github_oauth_state');
@@ -78,7 +89,7 @@ export class GitHubAuth {
       throw new Error(tokenData.error_description || 'Failed to get access token');
     }
 
-    this.accessToken = tokenData.access_token;
+    this.setAccessToken(tokenData.access_token);
 
     const userResponse = await fetch('https://api.github.com/user', {
       headers: {
@@ -165,8 +176,43 @@ export class GitHubAuth {
     return this.trackedRepository;
   }
 
+  private setAccessToken(token: string): void {
+    // Store in memory
+    this.accessToken = token;
+    
+    // Store in sessionStorage for tab persistence
+    sessionStorage.setItem('github_access_token', token);
+  }
+
   logout(): void {
     this.accessToken = null;
     this.trackedRepository = null;
+    sessionStorage.removeItem('github_access_token');
+    sessionStorage.removeItem('github_oauth_state');
+  }
+
+  private async makeGitHubRequest(url: string): Promise<any> {
+    if (!this.accessToken) {
+      throw new Error('Not authenticated with GitHub');
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${this.accessToken}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    // Handle rate limiting
+    if (response.status === 403 && response.headers.get('X-RateLimit-Remaining') === '0') {
+      const resetTime = response.headers.get('X-RateLimit-Reset');
+      throw new Error(`Rate limit exceeded. Resets at ${new Date(Number(resetTime) * 1000)}`);
+    }
+
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.statusText}`);
+    }
+
+    return response.json();
   }
 }

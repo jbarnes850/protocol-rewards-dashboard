@@ -6,9 +6,10 @@ node_modules
 # Environment files
 .env
 .env.local
+.env
 .env.development
-.env.test.local
-.env.production.local
+.env.test
+.env.production
 
 # Build
 dist
@@ -34,3 +35,8 @@ lerna-debug.log*
 *.sln
 *.sw?
 .bolt
+
+# Other standard ignores...
+dist/
+.DS_Store
+*.log
