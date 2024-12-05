@@ -186,8 +186,8 @@ export function RepoSelector() {
               <div className="space-y-2">
                 <p className="text-sm text-gray-400">
                   We request repository access to track your development activity 
-                  for the rewards program. This includes both public and private repositories 
-                  you choose to track. You control which repository is tracked.
+                  for the rewards program. You control which specific repository is tracked, 
+                  and we only collect metrics for your selected repository.
                 </p>
                 <p className="text-sm text-gray-400">
                   Your data is securely handled and only used for calculating rewards. 

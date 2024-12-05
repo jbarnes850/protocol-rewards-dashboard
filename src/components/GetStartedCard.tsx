@@ -29,8 +29,7 @@ jobs:
         run: npx near-protocol-rewards track`,
   deploy: `# Your metrics will start being collected automatically!
 # We track:
-# - Public repository metrics
-# - Organization membership
+# - Repository metrics (for the selected repository)
 # - Basic profile information
 # View them at https://protocol-rewards-dashboard.vercel.app/
 
@@ -156,7 +155,7 @@ export function GetStartedCard() {
 
           <div className="flex items-center gap-6 mt-6 pt-6 border-t border-white/10">
             <a
-              href="https://github.com/near/protocol-rewards"
+              href="https://github.com/jbarnes850/near-protocol-rewards"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-sm text-gray-400 hover:text-near-purple transition-colors"
@@ -165,7 +164,7 @@ export function GetStartedCard() {
               View on GitHub
             </a>
             <a
-              href="https://docs.near.org/protocol-rewards"
+              href="https://github.com/jbarnes850/near-protocol-rewards/blob/main/README.md"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-sm text-gray-400 hover:text-near-purple transition-colors"
