@@ -193,7 +193,9 @@ export function RepoSelector() {
                   Your data is securely handled and only used for calculating rewards. 
                   Learn more in our{' '}
                   <a 
-                    href="/privacy-policy" 
+                    href="https://near.org/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-near-purple hover:text-near-purple/80 
                              underline transition-colors"
                   >

@@ -2,6 +2,7 @@ import React from 'react';
 import { Target, GitPullRequest, Code, Users, ArrowRight } from 'lucide-react';
 import { Tooltip } from './ui/Tooltip';
 import { useRewards } from '../hooks/useRewards';
+import { Link } from 'react-router-dom';
 
 interface ActionItem {
   id: string;
@@ -79,9 +80,9 @@ export function PriorityActions() {
 
         <div className="space-y-3">
           {actions.map((action) => (
-            <a
+            <Link
               key={action.id}
-              href={action.link}
+              to={action.link}
               className="flex items-center justify-between p-4 bg-black/20 backdrop-blur-sm rounded-lg 
                        hover:bg-white/10 transition-colors group border border-white/5 hover:border-near-purple/20"
             >
@@ -100,7 +101,7 @@ export function PriorityActions() {
                 </Tooltip>
                 <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-near-purple transition-colors" />
               </div>
-            </a>
+            </Link>
           ))}
         </div>
       </div>
