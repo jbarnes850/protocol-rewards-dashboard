@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../providers/AuthProvider';
 import { Search, Loader2, Github, Shield, ExternalLink } from 'lucide-react';
+import { GitHubAuth } from '../lib/github-auth';
 
 interface Repository {
   id: number;
   name: string;
   full_name: string;
-  description: string;
-  html_url: string;
   private: boolean;
+  html_url: string;
+  description?: string;
   updated_at: string;
 }
 
@@ -18,16 +19,27 @@ export function RepoSelector() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRepo, setSelectedRepo] = useState<number | null>(null);
+  const auth = GitHubAuth.getInstance();
 
   useEffect(() => {
     const fetchRepos = async () => {
       try {
         const response = await fetch('https://api.github.com/user/repos?sort=updated', {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('github_token')}`,
+            'Authorization': `Bearer ${auth.getAccessToken()}`,
             'Accept': 'application/vnd.github.v3+json'
           }
         });
+
+        if (response.status === 403 && response.headers.get('X-RateLimit-Remaining') === '0') {
+          const resetTime = response.headers.get('X-RateLimit-Reset');
+          throw new Error(`Rate limit exceeded. Resets at ${new Date(Number(resetTime) * 1000)}`);
+        }
+
+        if (!response.ok) {
+          throw new Error(`GitHub API error: ${response.statusText}`);
+        }
+
         const data = await response.json();
         setRepositories(data);
       } catch (error) {
@@ -52,6 +64,7 @@ export function RepoSelector() {
       );
       
       if (confirmed) {
+        await auth.setTrackedRepository(repo.full_name);
         await setTrackedRepository(repo.full_name);
       } else {
         setSelectedRepo(null);
