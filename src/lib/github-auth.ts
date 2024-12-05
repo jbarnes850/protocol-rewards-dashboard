@@ -38,6 +38,7 @@ export class GitHubAuth {
 
   getLoginUrl(): string {
     this.state = crypto.randomUUID();
+    localStorage.setItem('github_oauth_state', this.state);
     
     const params = new URLSearchParams({
       client_id: GITHUB_CLIENT_ID,
@@ -55,9 +56,13 @@ export class GitHubAuth {
 
   async handleCallback(code: string, state: string): Promise<GitHubUser> {
     try {
-      if (!this.state || state !== this.state) {
+      const savedState = localStorage.getItem('github_oauth_state');
+      
+      if (!savedState || state !== savedState) {
         throw new Error('Invalid state parameter');
       }
+
+      localStorage.removeItem('github_oauth_state');
 
       const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
         method: 'POST',
