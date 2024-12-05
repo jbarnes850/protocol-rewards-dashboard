@@ -36,7 +36,8 @@ export class GitHubAuth {
 
   getLoginUrl(): string {
     const state = crypto.randomUUID();
-    localStorage.setItem('github_oauth_state', state);
+    sessionStorage.setItem('github_oauth_state', state);
+    console.log('Setting state:', state);
     
     const params = new URLSearchParams({
       client_id: GITHUB_CLIENT_ID,
@@ -50,13 +51,13 @@ export class GitHubAuth {
   }
 
   async handleCallback(code: string, state: string): Promise<GitHubUser> {
-    const savedState = localStorage.getItem('github_oauth_state');
-    console.log('Saved state:', savedState, 'Received state:', state);
+    const savedState = sessionStorage.getItem('github_oauth_state');
+    console.log('Checking states:', { savedState, receivedState: state });
     
     if (!savedState || state !== savedState) {
       throw new Error('Invalid state parameter');
     }
-    localStorage.removeItem('github_oauth_state');
+    sessionStorage.removeItem('github_oauth_state');
 
     const tokenResponse = await fetch('/api/github/oauth/token', {
       method: 'POST',
