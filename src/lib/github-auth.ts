@@ -42,7 +42,7 @@ export class GitHubAuth {
     const params = new URLSearchParams({
       client_id: GITHUB_CLIENT_ID,
       redirect_uri: `${APP_URL}/auth/callback`,
-      scope: 'read:user user:email repo',
+      scope: 'read:user user:email repo read:org',
       state: this.state,
       allow_signup: 'true'
     });

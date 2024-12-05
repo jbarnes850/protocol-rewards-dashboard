@@ -185,23 +185,20 @@ export function RepoSelector() {
               <Shield className="w-5 h-5 text-near-purple mt-1" />
               <div className="space-y-2">
                 <p className="text-sm text-gray-400">
-                  We need access to your repository data to track your development activity 
-                  for the rewards program. This includes commits, pull requests, and other 
-                  GitHub activities.
+                  We request repository access to track your development activity 
+                  for the rewards program. This includes both public and private repositories 
+                  you choose to track. You control which repository is tracked.
                 </p>
                 <p className="text-sm text-gray-400">
                   Your data is securely handled and only used for calculating rewards. 
                   Learn more in our{' '}
-                  <a 
-                    href="https://near.org/privacy"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-near-purple hover:text-near-purple/80 
-                             underline transition-colors"
-                  >
+                  <a href="https://near.org/privacy"
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     className="text-near-purple hover:text-near-purple/80 
+                              underline transition-colors">
                     Privacy Policy
-                  </a>
-                  .
+                  </a>.
                 </p>
               </div>
             </div>

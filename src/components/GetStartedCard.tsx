@@ -28,6 +28,10 @@ jobs:
           GITHUB_REPO: \${{ github.repository }}
         run: npx near-protocol-rewards track`,
   deploy: `# Your metrics will start being collected automatically!
+# We track:
+# - Public repository metrics
+# - Organization membership
+# - Basic profile information
 # View them at https://protocol-rewards-dashboard.vercel.app/
 
 # Need more control? Use the SDK:
@@ -74,7 +78,8 @@ export function GetStartedCard() {
                 </span>
               </div>
               <p className="text-gray-400 mt-1">
-                Track your contributions, earn rewards, and become part of the NEAR ecosystem
+                Track your contributions, earn rewards, and become part of the NEAR ecosystem. 
+                We only request basic profile access and repository metrics.
               </p>
             </div>
           </div>
