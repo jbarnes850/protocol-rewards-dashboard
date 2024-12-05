@@ -12,6 +12,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const host = req.headers['host'];
+    const protocol = req.headers['x-forwarded-proto'] || 'https';
+    const appUrl = `${protocol}://${host}`
+
     const response = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
@@ -22,7 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         client_id: process.env.GITHUB_CLIENT_ID,
         client_secret: process.env.GITHUB_CLIENT_SECRET,
         code,
-        redirect_uri: `${process.env.VITE_APP_URL}/auth/callback`,
+        redirect_uri: `${appUrl}/auth/callback`,
         state,
       }),
     });

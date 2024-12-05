@@ -1,5 +1,4 @@
-const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID;
-const APP_URL = import.meta.env.VITE_APP_URL;
+const GITHUB_CLIENT_ID = import.meta.env.GITHUB_CLIENT_ID;
 
 interface GitHubRepository {
   id: number;
@@ -44,7 +43,7 @@ export class GitHubAuth {
     
     const params = new URLSearchParams({
       client_id: GITHUB_CLIENT_ID,
-      redirect_uri: `${APP_URL}/auth/callback`,
+      redirect_uri: `${window.location.origin}/auth/callback`,
       scope: 'read:user user:email repo',
       state,
       allow_signup: 'true'
