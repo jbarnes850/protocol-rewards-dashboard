@@ -5,22 +5,37 @@ import { toast } from 'sonner';
 import { Tooltip } from './ui/Tooltip';
 
 const codeExamples = {
-  install: `npm install near-protocol-rewards`,
-  configure: `import { NEARProtocolRewardsSDK } from 'near-protocol-rewards';
+  install: `npx near-protocol-rewards init`,
+  configure: `# .github/workflows/near-rewards.yml
+
+name: NEAR Protocol Rewards Tracking
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Adjust this for different frequency
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  track-metrics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+      - name: Run Metrics Collection
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: \${{ github.repository }}
+        run: npx near-protocol-rewards track`,
+  deploy: `# Your metrics will start being collected automatically!
+# View them at https://protocol-rewards-dashboard.vercel.app/
+
+# Need more control? Use the SDK:
+import { NEARProtocolRewardsSDK } from 'near-protocol-rewards';
 
 const sdk = new NEARProtocolRewardsSDK({
-  projectId: 'your-project',
-  nearAccount: 'your.near',
-  githubRepo: 'org/repo'
-});`,
-  deploy: `// Deploy your rewards tracker
-await sdk.deploy({
-  network: 'mainnet',
-  rewards: {
-    basePoints: 100,
-    multiplier: 1.5,
-    categories: ['code', 'review', 'issues']
-  }
+  githubRepo: 'your-org/repo',
+  githubToken: process.env.GITHUB_TOKEN
 });`
 };
 
@@ -67,7 +82,7 @@ export function GetStartedCard() {
 
         <div className="mt-6">
           <div className="flex space-x-2 mb-4">
-            <Tooltip content="Install the SDK package">
+            <Tooltip content="Initialize rewards tracking">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 onClick={() => setActiveStep('install')}
@@ -78,11 +93,11 @@ export function GetStartedCard() {
                 }`}
               >
                 <Terminal className="w-4 h-4" />
-                <span className="text-sm font-medium">1. Install</span>
+                <span className="text-sm font-medium">1. Initialize</span>
               </motion.button>
             </Tooltip>
 
-            <Tooltip content="Configure your project settings">
+            <Tooltip content="View GitHub Actions workflow">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 onClick={() => setActiveStep('configure')}
@@ -93,11 +108,11 @@ export function GetStartedCard() {
                 }`}
               >
                 <Code className="w-4 h-4" />
-                <span className="text-sm font-medium">2. Configure</span>
+                <span className="text-sm font-medium">2. Workflow</span>
               </motion.button>
             </Tooltip>
 
-            <Tooltip content="Deploy and start earning rewards">
+            <Tooltip content="View advanced SDK usage">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 onClick={() => setActiveStep('deploy')}
@@ -108,7 +123,7 @@ export function GetStartedCard() {
                 }`}
               >
                 <Rocket className="w-4 h-4" />
-                <span className="text-sm font-medium">3. Deploy</span>
+                <span className="text-sm font-medium">3. Advanced</span>
               </motion.button>
             </Tooltip>
           </div>

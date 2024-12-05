@@ -1,6 +1,8 @@
 const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID;
 const GITHUB_CLIENT_SECRET = import.meta.env.VITE_GITHUB_CLIENT_SECRET;
-const APP_URL = 'https://protocol-rewards-dashboard.vercel.app';
+const APP_URL = import.meta.env.DEV 
+  ? 'http://localhost:5173'
+  : 'https://protocol-rewards-dashboard.vercel.app';
 
 interface GitHubRepository {
   id: number;
@@ -16,7 +18,7 @@ interface GitHubUser {
   name: string;
   avatar_url: string;
   email: string;
-  tracked_repository?: GitHubRepository;
+  tracked_repository?: GitHubRepository | null;
 }
 
 export class GitHubAuth {
@@ -45,7 +47,10 @@ export class GitHubAuth {
       allow_signup: 'true'
     });
 
-    return `https://github.com/login/oauth/authorize?${params.toString()}`;
+    const url = `https://github.com/login/oauth/authorize?${params.toString()}`;
+    console.log('Generated GitHub OAuth URL:', url);
+    console.log('Using APP_URL:', APP_URL);
+    return url;
   }
 
   async handleCallback(code: string, state: string): Promise<GitHubUser> {
