@@ -7,6 +7,18 @@ export default defineConfig({
     port: process.env.PORT as unknown as number,
   },
   plugins: [react(), vercel()],
+  vercel: {
+    rewrites: [
+      {
+        source: "/api/(.*)",
+        destination: "/api/$1"
+      },
+      {
+        source: "/(.*)",
+        destination: "/index.html"
+      }
+    ]
+  },
   define: {
     'process.env': {},
   },
