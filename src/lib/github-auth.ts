@@ -38,7 +38,7 @@ export class GitHubAuth {
     
     const stateObj = {
       value: state,
-      expires: Date.now() + (5 * 60 * 1000) // 5 minutes
+      expires: Date.now() + (5 * 60 * 1000)
     };
     sessionStorage.setItem('github_oauth_state', JSON.stringify(stateObj));
     
