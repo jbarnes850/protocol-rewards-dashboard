@@ -1,14 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { Activity, Users, GitPullRequest, Star, Code, Target, Coins } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Activity, Users, GitPullRequest, Star, Coins } from 'lucide-react';
 import { Tooltip } from './ui/Tooltip';
 
 // API Constants
 const GITHUB_API = 'https://api.github.com';
-const NEAR_ENDPOINTS = {
-  stats: import.meta.env.VITE_NEAR_INDEXER_URL,
-  indexer: import.meta.env.VITE_NEAR_INDEXER_URL,
-  rpc: import.meta.env.VITE_NEAR_RPC_URL
-};
 
 interface NetworkMetrics {
   totalRewardsDistributed: number;
@@ -80,7 +75,7 @@ export function NetworkStats() {
       try {
         setLoading(true);
         setError(null);
-        
+
         // Fetch GitHub metrics
         const githubData = await fetchGitHubMetrics();
         console.log('GitHub data:', githubData);
@@ -94,7 +89,8 @@ export function NetworkStats() {
         });
       } catch (error) {
         console.error('Error fetching metrics:', error);
-        setError('Failed to fetch metrics. Please try again later.');
+        const isAuthError = error instanceof Error && error.message.includes('401');
+        setError(isAuthError ? 'Please connect your GitHub account to view metrics.' : 'Failed to fetch metrics. Please try again later.');
       } finally {
         setLoading(false);
       }
