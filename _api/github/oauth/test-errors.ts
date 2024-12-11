@@ -6,10 +6,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Handle initial OAuth redirect (GET request)
   if (req.method === 'GET') {
-    const { client_id, redirect_uri, state } = req.query;
+    const { redirect_uri, state } = req.query;
 
-    // Simulate GitHub OAuth redirect
-    const code = 'test_authorization_code';
+    // Simulate GitHub OAuth redirect with test scenario
+    const code = `test_${req.query.scenario || 'success'}`;
     const redirectUrl = `${redirect_uri}?code=${code}&state=${state}`;
     return res.redirect(302, redirectUrl);
   }

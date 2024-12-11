@@ -312,28 +312,27 @@ export class GitHubAuth {
   }
 
   private async handleTestScenario(scenario: string): Promise<GitHubUser> {
-    const response = await fetch(`/api/github/oauth/test-errors?scenario=${scenario}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
+    switch (scenario) {
+      case 'success':
+        return {
+          id: 'test_12345',
+          login: 'test-user',
+          name: 'Test User',
+          avatar_url: 'https://github.com/github.png',
+          email: 'test@example.com'
+        };
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message);
+      case 'invalid_token':
+        throw new Error('Invalid token');
+
+      case 'network_error':
+        throw new Error('Network error');
+
+      case 'expired_token':
+        throw new Error('Token has expired');
+
+      default:
+        throw new Error(`Unknown test scenario: ${scenario}`);
     }
-
-    const tokenData = await response.json();
-    await this.setAccessToken(tokenData.access_token);
-
-    // Return mock user data for testing
-    return {
-      id: 'test_user_id',
-      login: 'test_user',
-      name: 'Test User',
-      avatar_url: 'https://github.com/github.png',
-      email: 'test@example.com'
-    };
   }
 }
