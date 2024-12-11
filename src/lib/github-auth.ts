@@ -139,75 +139,65 @@ export class GitHubAuth {
   }
 
   async handleCallback(code: string, state: string): Promise<GitHubUser> {
-    const storedStateJson = sessionStorage.getItem('github_oauth_state');
-    if (!storedStateJson) {
-      throw new Error('No state found');
-    }
+    try {
+      const parsedState = JSON.parse(state);
+      const { timestamp } = parsedState;
 
-    const storedState = JSON.parse(storedStateJson);
-    if (Date.now() > storedState.expires) {
-      sessionStorage.removeItem('github_oauth_state');
-      throw new Error('State expired');
-    }
+      // Verify state is not expired (5 minutes)
+      if (Date.now() - timestamp > 5 * 60 * 1000) {
+        throw new Error('State expired');
+      }
 
-    if (state !== storedState.value) {
-      throw new Error('Invalid state parameter');
-    }
-    sessionStorage.removeItem('github_oauth_state');
+      // For testing error scenarios in development
+      if (import.meta.env.DEV && code.startsWith('test_')) {
+        return this.handleTestScenario(code.substring(5));
+      }
 
-    // For testing error scenarios
-    if (process.env.NODE_ENV === 'development' && code.startsWith('test_')) {
-      const response = await fetch(`/api/github/oauth/test-errors?scenario=${code.substring(5)}`, {
+      const tokenResponse = await fetch('/api/github/oauth/token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code, state })
+      });
+
+      if (!tokenResponse.ok) {
+        throw new Error('Failed to exchange code for token');
+      }
+
+      const tokenData = await tokenResponse.json();
+
+      if (tokenData.error) {
+        console.error('GitHub OAuth error:', tokenData.error_description);
+        throw new Error(tokenData.error_description || 'Failed to get access token');
+      }
+
+      await this.setAccessToken(tokenData.access_token);
+
+      const userResponse = await fetch('https://api.github.com/user', {
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`,
+          'Accept': 'application/vnd.github.v3+json'
         }
       });
-      const errorData = await response.json();
-      throw new Error(errorData.message);
-    }
 
-    const tokenResponse = await fetch('/api/github/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ code, state })
-    });
-
-    if (!tokenResponse.ok) {
-      throw new Error('Failed to exchange code for token');
-    }
-
-    const tokenData = await tokenResponse.json();
-
-    if (tokenData.error) {
-      console.error('GitHub OAuth error:', tokenData.error_description);
-      throw new Error(tokenData.error_description || 'Failed to get access token');
-    }
-
-    await this.setAccessToken(tokenData.access_token);
-
-    const userResponse = await fetch('https://api.github.com/user', {
-      headers: {
-        'Authorization': `Bearer ${this.accessToken}`,
-        'Accept': 'application/vnd.github.v3+json'
+      if (!userResponse.ok) {
+        throw new Error('Failed to fetch user data');
       }
-    });
 
-    if (!userResponse.ok) {
-      throw new Error('Failed to fetch user data');
+      const userData = await userResponse.json();
+
+      return {
+        id: userData.id,
+        login: userData.login,
+        name: userData.name || userData.login,
+        avatar_url: userData.avatar_url,
+        email: userData.email || ''
+      };
+    } catch (error) {
+      console.error('Error handling callback:', error);
+      throw error;
     }
-
-    const userData = await userResponse.json();
-
-    return {
-      id: userData.id,
-      login: userData.login,
-      name: userData.name || userData.login,
-      avatar_url: userData.avatar_url,
-      email: userData.email || ''
-    };
   }
 
   getAccessToken(): string | null {
@@ -299,51 +289,51 @@ export class GitHubAuth {
 
   private async refreshTokenIfNeeded(): Promise<void> {
     if (!this.accessToken || !this.tokenExpiration) {
-      return;
-    }
-
-    if (Date.now() + 5 * 60 * 1000 >= this.tokenExpiration) {
-      try {
-        const response = await fetch('/api/github/oauth/refresh', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.accessToken}`
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          await this.setAccessToken(data.access_token);
-        }
-      } catch (error) {
-        console.error('Failed to refresh token:', error);
-        this.logout();
-      }
-    }
-  }
-
-  private async makeGitHubRequest(url: string): Promise<any> {
-    if (!this.accessToken) {
       throw new Error('Not authenticated with GitHub');
     }
 
-    const response = await fetch(url, {
+    // Refresh token if it expires in less than 5 minutes
+    if (Date.now() + 5 * 60 * 1000 > this.tokenExpiration) {
+      const response = await fetch('/api/github/oauth/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.accessToken}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to refresh token');
+      }
+
+      const data = await response.json();
+      await this.setAccessToken(data.access_token);
+    }
+  }
+
+  private async handleTestScenario(scenario: string): Promise<GitHubUser> {
+    const response = await fetch(`/api/github/oauth/test-errors?scenario=${scenario}`, {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.accessToken}`,
-        'Accept': 'application/vnd.github.v3+json'
+        'Content-Type': 'application/json',
       }
     });
 
-    if (response.status === 403 && response.headers.get('X-RateLimit-Remaining') === '0') {
-      const resetTime = response.headers.get('X-RateLimit-Reset');
-      throw new Error(`Rate limit exceeded. Resets at ${new Date(Number(resetTime) * 1000)}`);
-    }
-
     if (!response.ok) {
-      throw new Error(`GitHub API error: ${response.statusText}`);
+      const errorData = await response.json();
+      throw new Error(errorData.message);
     }
 
-    return response.json();
+    const tokenData = await response.json();
+    await this.setAccessToken(tokenData.access_token);
+
+    // Return mock user data for testing
+    return {
+      id: 'test_user_id',
+      login: 'test_user',
+      name: 'Test User',
+      avatar_url: 'https://github.com/github.png',
+      email: 'test@example.com'
+    };
   }
 }
