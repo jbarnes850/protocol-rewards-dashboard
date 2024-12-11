@@ -2,7 +2,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // Test endpoint to simulate various OAuth error scenarios
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { scenario, redirect_uri, state } = req.query;
+  // Ensure proper type handling for query parameters
+  const scenario = typeof req.query.scenario === 'string' ? req.query.scenario : 'success';
+  const redirect_uri = typeof req.query.redirect_uri === 'string' ? req.query.redirect_uri : '';
+  const state = typeof req.query.state === 'string' ? req.query.state : '';
 
   // Simulate network delay
   await new Promise(resolve => setTimeout(resolve, 500));
@@ -12,7 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Parse state parameter
     let stateObj;
     try {
-      stateObj = typeof state === 'string' ? JSON.parse(state) : null;
+      stateObj = state ? JSON.parse(state) : null;
       if (!stateObj || !stateObj.state || !stateObj.timestamp) {
         throw new Error('Invalid state format');
       }
@@ -23,11 +26,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    // Default to success scenario if none specified
     switch (scenario) {
       case 'success':
         const code = 'test_success_code_' + Date.now();
-        // Include scenario parameter in redirect for proper test flow
-        const redirectUrl = `${redirect_uri}?code=${code}&state=${state}&scenario=success`;
+        const redirectUrl = `${redirect_uri}?code=${code}&state=${encodeURIComponent(state)}&scenario=success`;
         return res.redirect(302, redirectUrl);
 
       case 'expired_state':
@@ -73,12 +76,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    // Default to success scenario if none specified
     switch (scenario) {
       case 'success':
         return res.status(200).json({
           access_token: 'test_valid_token_' + Date.now(),
           token_type: 'bearer',
-          scope: 'read:user user:email repo',
+          scope: 'read:user user:email',
           expires_in: 3600
         });
 
