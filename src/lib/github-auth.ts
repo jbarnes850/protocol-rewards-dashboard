@@ -116,22 +116,24 @@ export class GitHubAuth {
   }
 
   getLoginUrl(): string {
-    const state = crypto.getRandomValues(new Uint8Array(32))
-      .reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '');
+    const state = crypto.randomUUID();
 
     const stateObj = {
-      value: state,
-      expires: Date.now() + (5 * 60 * 1000)
+      state,
+      timestamp: Date.now()
     };
-    sessionStorage.setItem('github_oauth_state', JSON.stringify(stateObj));
 
     const params = new URLSearchParams({
       client_id: GITHUB_CLIENT_ID,
       redirect_uri: `${window.location.origin}/auth/callback`,
       scope: 'read:user user:email repo',
-      state,
-      allow_signup: 'true'
-    } as Record<string, string>);
+      state: JSON.stringify(stateObj)
+    });
+
+    // For testing, use our test endpoint
+    if (import.meta.env.DEV) {
+      return `/api/github/oauth/test-errors?scenario=success&${params.toString()}`;
+    }
 
     return `https://github.com/login/oauth/authorize?${params.toString()}`;
   }
