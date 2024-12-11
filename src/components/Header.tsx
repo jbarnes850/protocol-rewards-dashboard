@@ -2,6 +2,7 @@ import React from 'react';
 import { Sun, Moon, Github, LogOut, Share2 } from 'lucide-react';
 import { useAuth } from '../providers/AuthProvider';
 import { useTheme } from '../providers/ThemeProvider';
+import { Spinner } from './ui/Spinner';
 
 export function Header() {
   const { user, loginWithGitHub, logout, loading, isGitHubConnected } = useAuth();
@@ -23,9 +24,9 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center space-x-4">
-            <img 
-              src="/logo_rev.png" 
-              alt="NEAR Protocol" 
+            <img
+              src="/logo_rev.png"
+              alt="NEAR Protocol"
               className="h-8 w-auto"
             />
             <span className="text-lg sm:text-xl font-bold text-white hidden sm:inline">Protocol Rewards</span>
@@ -47,8 +48,8 @@ export function Header() {
             {/* Share button */}
             <button
               onClick={shareProgress}
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 
-                       bg-near-purple/10 text-near-purple rounded-lg 
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5
+                       bg-near-purple/10 text-near-purple rounded-lg
                        hover:bg-near-purple/20 transition-colors"
             >
               <Share2 className="w-4 h-4" />
@@ -60,7 +61,7 @@ export function Header() {
               <div className="flex items-center gap-2 sm:gap-4">
                 {/* Repository indicator - only show when a repo is tracked */}
                 {user.trackedRepository && (
-                  <div className="hidden md:flex items-center gap-2 px-3 py-1.5 
+                  <div className="hidden md:flex items-center gap-2 px-3 py-1.5
                               bg-near-purple/5 border border-near-purple/10 rounded-lg">
                     <Github className="w-4 h-4 text-near-purple" />
                     <span className="text-sm text-near-purple font-medium">
@@ -68,10 +69,10 @@ export function Header() {
                     </span>
                   </div>
                 )}
-                
+
                 <div className="hidden sm:flex items-center gap-2">
-                  <img 
-                    src={user.avatar} 
+                  <img
+                    src={user.avatar}
                     alt={user.name}
                     className="w-8 h-8 rounded-full ring-2 ring-near-purple/20"
                   />
@@ -85,24 +86,42 @@ export function Header() {
                     )}
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={logout}
-                  className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                  className="p-2 rounded-lg hover:bg-white/10 transition-colors
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={loading}
                 >
-                  <LogOut className="w-5 h-5 text-white" />
+                  {loading ? (
+                    <Spinner className="w-5 h-5 text-white" />
+                  ) : (
+                    <LogOut className="w-5 h-5 text-white" />
+                  )}
                 </button>
               </div>
             ) : (
-              <button 
+              <button
                 onClick={loginWithGitHub}
                 disabled={loading}
-                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-near-purple text-white rounded-lg 
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-near-purple text-white rounded-lg
                          hover:bg-near-purple/90 transition-all duration-200 shadow-lg shadow-near-purple/20
-                         disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                         disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base
+                         relative"
+                aria-label={loading ? 'Connecting to GitHub...' : 'Connect GitHub'}
               >
-                <Github className="w-4 h-4" />
-                <span className="hidden sm:inline">Connect GitHub</span>
-                <span className="sm:hidden">Connect</span>
+                {loading ? (
+                  <>
+                    <Spinner className="w-4 h-4" />
+                    <span className="hidden sm:inline">Connecting...</span>
+                    <span className="sm:hidden">...</span>
+                  </>
+                ) : (
+                  <>
+                    <Github className="w-4 h-4" />
+                    <span className="hidden sm:inline">Connect GitHub</span>
+                    <span className="sm:hidden">Connect</span>
+                  </>
+                )}
               </button>
             )}
           </div>

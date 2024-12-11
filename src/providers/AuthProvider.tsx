@@ -55,17 +55,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isGitHubConnected, setIsGitHubConnected] = useState(false);
 
+  // Check authentication status periodically
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      try {
+        const token = githubAuth.getAccessToken();
+        if (!token) {
+          if (isGitHubConnected) {
+            setIsGitHubConnected(false);
+            setUser(null);
+            toast.error('Session expired. Please login again.');
+          }
+          return;
+        }
+
+        // Attempt to get current user, which will trigger token refresh if needed
+        await githubAuth.getCurrentUser();
+      } catch (error) {
+        console.error('Auth status check failed:', error);
+        setIsGitHubConnected(false);
+        setUser(null);
+        toast.error('Session expired. Please login again.');
+      }
+    };
+
+    // Check auth status every minute
+    const interval = setInterval(checkAuthStatus, 60000);
+    return () => clearInterval(interval);
+  }, [isGitHubConnected]);
+
+  // Initial auth check
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const githubToken = githubAuth.getAccessToken();
-        if (githubToken) {
+        const token = githubAuth.getAccessToken();
+        if (token) {
           setIsGitHubConnected(true);
-          await correlateUserData(githubToken);
+          await loadUserData();
         }
       } catch (error) {
         console.error('Failed to initialize authentication:', error);
         toast.error('Failed to load user data');
+        setIsGitHubConnected(false);
       } finally {
         setLoading(false);
       }
@@ -74,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth();
   }, []);
 
-  const correlateUserData = async (githubToken: string) => {
+  const loadUserData = async () => {
     try {
       const githubUser = await githubAuth.getCurrentUser();
       const sdkMetrics = await sdk.getUserMetrics(githubUser.login);
@@ -94,13 +125,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       });
     } catch (error) {
-      console.error('Failed to correlate user data:', error);
+      console.error('Failed to load user data:', error);
       toast.error('Failed to load complete metrics');
+      // If the error is auth-related, reset the connection
+      if (error instanceof Error && error.message.includes('Not authenticated')) {
+        setIsGitHubConnected(false);
+        setUser(null);
+      }
     }
   };
 
   const updateUser = (data: Partial<User>) => {
-    setUser(prev => {
+    setUser((prev: User | null) => {
       if (!prev && !data.id) return null;
       return {
         ...prev,
@@ -111,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           progress: 0,
           nextMilestone: 250,
         },
-      };
+      } as User;
     });
   };
 
@@ -123,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const githubUser = await githubAuth.handleCallback(code, state);
       setIsGitHubConnected(true);
-      await correlateUserData(githubUser);
+      await loadUserData();
     } catch (error) {
       console.error('GitHub callback error:', error);
       throw error;
@@ -160,9 +196,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        user, 
+    <AuthContext.Provider
+      value={{
+        user,
         loginWithGitHub,
         handleGitHubCallback,
         logout,
