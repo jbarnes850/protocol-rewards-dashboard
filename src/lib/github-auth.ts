@@ -153,6 +153,18 @@ export class GitHubAuth {
     }
     sessionStorage.removeItem('github_oauth_state');
 
+    // For testing error scenarios
+    if (process.env.NODE_ENV === 'development' && code.startsWith('test_')) {
+      const response = await fetch(`/api/github/oauth/test-errors?scenario=${code.substring(5)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      const errorData = await response.json();
+      throw new Error(errorData.message);
+    }
+
     const tokenResponse = await fetch('/api/github/oauth/token', {
       method: 'POST',
       headers: {

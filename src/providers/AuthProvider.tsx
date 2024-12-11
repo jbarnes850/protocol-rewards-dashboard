@@ -38,6 +38,7 @@ interface AuthContextType {
   loginWithGitHub: () => void;
   logout: () => void;
   loading: boolean;
+  error: string | null;
   isGitHubConnected: boolean;
   handleGitHubCallback: (code: string, state: string) => Promise<void>;
   setTrackedRepository: (repoFullName: string) => Promise<void>;
@@ -53,6 +54,7 @@ const sdk = new NEARProtocolRewardsSDK({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isGitHubConnected, setIsGitHubConnected] = useState(false);
 
   // Check authentication status periodically
@@ -157,12 +159,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const handleGitHubCallback = async (code: string, state: string) => {
     try {
+      setLoading(true);
+      setError(null);
+
+      // Check for OAuth error parameters in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('error')) {
+        const errorDescription = urlParams.get('error_description') || 'Authentication failed';
+        throw new Error(errorDescription);
+      }
+
       const githubUser = await githubAuth.handleCallback(code, state);
       setIsGitHubConnected(true);
       await loadUserData();
     } catch (error) {
       console.error('GitHub callback error:', error);
+      setError(error instanceof Error ? error.message : 'Authentication failed');
+      setIsGitHubConnected(false);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -203,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         handleGitHubCallback,
         logout,
         loading,
+        error,
         isGitHubConnected,
         setTrackedRepository
       }}
