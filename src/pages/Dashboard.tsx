@@ -1,4 +1,3 @@
-import React from 'react';
 import { useAuth } from '../providers/AuthProvider';
 import { RepoSelector } from '../components/RepoSelector';
 import { ProjectOverview } from '../components/ProjectOverview';
@@ -9,9 +8,19 @@ import { ActivityFeed } from '../components/ActivityFeed';
 import { PriorityActions } from '../components/PriorityActions';
 import { Footer } from '../components/Footer';
 import { NetworkStats } from '../components/NetworkStats';
+import { Spinner } from '../components/ui/Spinner';
+import { TestErrorScenarios } from '../components/TestErrorScenarios';
 
 export function Dashboard() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Spinner className="w-8 h-8" />
+      </div>
+    );
+  }
 
   // Show repo selector if user is logged in but hasn't selected a repo
   if (user && !user.trackedRepository) {
@@ -25,21 +34,24 @@ export function Dashboard() {
           {/* Hero Section */}
           <div className="space-y-6 pb-8 border-b border-white/10">
             <NetworkStats />
-            <GetStartedCard />
+            {!user && <GetStartedCard />}
+            {import.meta.env.DEV && <TestErrorScenarios />}
           </div>
 
-          {/* Main Content */}
-          <div className="space-y-12"> {/* Increased spacing between sections */}
-            <ProjectOverview />
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <PersonalProgress />
-              <DeveloperMetrics />
+          {/* Main Content - Only show when user is authenticated */}
+          {user && (
+            <div className="space-y-12">
+              <ProjectOverview />
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <PersonalProgress />
+                <DeveloperMetrics />
+              </div>
+
+              <PriorityActions />
+              <ActivityFeed />
             </div>
-
-            <PriorityActions />
-            <ActivityFeed />
-          </div>
+          )}
         </div>
       </main>
       <Footer />

@@ -2,21 +2,17 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import vercel from 'vite-plugin-vercel';
 
-export default defineConfig({
+const config = {
   server: {
     port: process.env.PORT as unknown as number || 5173,
-    host: true, // Allow external access
-    strictPort: true, // Fail if port is already in use
+    host: true,
+    strictPort: true,
     proxy: {
       '/api': {
         target: 'http://localhost:5173',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/_api'),
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.log('proxy error', err);
-          });
-        }
+        rewrite: (path: string) => path.replace(/^\/api/, '/_api'),
+        secure: false
       }
     }
   },
@@ -25,7 +21,7 @@ export default defineConfig({
     rewrites: [
       {
         source: "/api/(.*)",
-        destination: "/api/$1"
+        destination: "/_api/$1"
       },
       {
         source: "/(.*)",
@@ -38,4 +34,6 @@ export default defineConfig({
     'process.env.VITE_GITHUB_API_URL': JSON.stringify(process.env.VITE_GITHUB_API_URL),
     'process.env.VITE_GITHUB_ORG': JSON.stringify(process.env.VITE_GITHUB_ORG),
   },
-});
+};
+
+export default defineConfig(config);

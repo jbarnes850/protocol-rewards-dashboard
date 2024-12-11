@@ -23,17 +23,20 @@ export class GitHubAuth {
   private tokenExpiration: number | null = null;
   private trackedRepository: GitHubRepository | null = null;
   private encryptionKey: CryptoKey | null = null;
+  private currentScopes: string[] = [];
 
   private constructor() {
     this.initializeEncryptionKey().then(() => {
-      const storedToken = sessionStorage.getItem('github_access_token');
-      const storedExpiration = sessionStorage.getItem('github_token_expiration');
+      const storedToken = localStorage.getItem('github_access_token');
+      const storedExpiration = localStorage.getItem('github_token_expiration');
+      const storedScopes = localStorage.getItem('github_scopes');
 
       if (storedToken && storedExpiration) {
         this.decryptToken(storedToken)
           .then(token => {
             this.accessToken = token;
             this.tokenExpiration = parseInt(storedExpiration, 10);
+            this.currentScopes = storedScopes ? JSON.parse(storedScopes) : [];
           })
           .catch(error => {
             console.error('Failed to decrypt stored token:', error);
@@ -115,22 +118,24 @@ export class GitHubAuth {
     return GitHubAuth.instance;
   }
 
-  getLoginUrl(): string {
+  getLoginUrl(additionalScopes?: string[]): string {
     const state = crypto.randomUUID();
-
     const stateObj = {
       state,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      additionalScopes
     };
+
+    const baseScopes = ['read:user', 'user:email'];
+    const scopes = additionalScopes ? [...baseScopes, ...additionalScopes] : baseScopes;
 
     const params = new URLSearchParams({
       client_id: GITHUB_CLIENT_ID,
       redirect_uri: `${window.location.origin}/auth/callback`,
-      scope: 'read:user user:email repo',
+      scope: scopes.join(' '),
       state: JSON.stringify(stateObj)
     });
 
-    // For testing, use our test endpoint
     if (import.meta.env.DEV) {
       return `/api/github/oauth/test-errors?scenario=success&${params.toString()}`;
     }
@@ -140,68 +145,86 @@ export class GitHubAuth {
 
   async handleCallback(code: string, state: string): Promise<GitHubUser> {
     try {
-      const parsedState = JSON.parse(state);
-      const { timestamp } = parsedState;
-
-      // Verify state is not expired (5 minutes)
-      if (Date.now() - timestamp > 5 * 60 * 1000) {
-        throw new Error('State expired');
+      // Validate state parameter
+      const storedState = localStorage.getItem('github_oauth_state');
+      if (!storedState || storedState !== state) {
+        throw new Error('Invalid state parameter');
       }
 
-      // For testing error scenarios in development
+      // Clear stored state
+      localStorage.removeItem('github_oauth_state');
+
+      // Handle test scenarios in development
       if (import.meta.env.DEV && code.startsWith('test_')) {
-        return this.handleTestScenario(code.substring(5));
+        const scenario = code.substring(5);
+        try {
+          await this.handleTestScenario(scenario);
+          if (scenario === 'success') {
+            return {
+              id: 'test_12345',
+              login: 'test-user',
+              name: 'Test User',
+              avatar_url: 'https://github.com/github.png',
+              email: 'test@example.com'
+            };
+          }
+        } catch (error) {
+          console.error('Test scenario error:', error);
+          throw error;
+        }
       }
 
-      const tokenResponse = await fetch('/api/github/oauth/token', {
+      // Exchange code for access token
+      const tokenResponse = await fetch('/_api/github/oauth/token', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ code, state })
       });
 
       if (!tokenResponse.ok) {
-        throw new Error('Failed to exchange code for token');
+        const error = await tokenResponse.json();
+        throw new Error(error.message || 'Failed to exchange code for token');
       }
 
-      const tokenData = await tokenResponse.json();
+      const { access_token, scope } = await tokenResponse.json();
 
-      if (tokenData.error) {
-        console.error('GitHub OAuth error:', tokenData.error_description);
-        throw new Error(tokenData.error_description || 'Failed to get access token');
-      }
+      // Store token with encryption
+      await this.setAccessToken(access_token, scope.split(','));
 
-      await this.setAccessToken(tokenData.access_token);
-
+      // Get user info
       const userResponse = await fetch('https://api.github.com/user', {
         headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-          'Accept': 'application/vnd.github.v3+json'
+          Authorization: `Bearer ${access_token}`,
+          Accept: 'application/vnd.github.v3+json'
         }
       });
 
       if (!userResponse.ok) {
-        throw new Error('Failed to fetch user data');
+        throw new Error('Failed to fetch user info');
       }
 
-      const userData = await userResponse.json();
-
-      return {
-        id: userData.id,
-        login: userData.login,
-        name: userData.name || userData.login,
-        avatar_url: userData.avatar_url,
-        email: userData.email || ''
-      };
+      return await userResponse.json();
     } catch (error) {
-      console.error('Error handling callback:', error);
+      console.error('GitHub OAuth error:', error);
       throw error;
     }
   }
 
   getAccessToken(): string | null {
     return this.accessToken;
+  }
+
+  hasScope(scope: string): boolean {
+    return this.currentScopes.includes(scope);
+  }
+
+  async requestPrivateRepoAccess(): Promise<void> {
+    if (this.hasScope('repo')) {
+      return;
+    }
+    window.location.href = this.getLoginUrl(['repo']);
   }
 
   async getCurrentUser(): Promise<GitHubUser> {
@@ -264,16 +287,24 @@ export class GitHubAuth {
     return this.trackedRepository;
   }
 
-  private async setAccessToken(token: string): Promise<void> {
+  private async setAccessToken(token: string, scopes?: string[]): Promise<void> {
     this.accessToken = token;
     this.tokenExpiration = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+    if (scopes) {
+      this.currentScopes = scopes;
+    }
 
     try {
+      // Test localStorage availability
+      localStorage.setItem('test', 'test');
+      localStorage.removeItem('test');
+
       const encryptedToken = await this.encryptToken(token);
-      sessionStorage.setItem('github_access_token', encryptedToken);
-      sessionStorage.setItem('github_token_expiration', this.tokenExpiration.toString());
+      localStorage.setItem('github_access_token', encryptedToken);
+      localStorage.setItem('github_token_expiration', this.tokenExpiration.toString());
+      localStorage.setItem('github_scopes', JSON.stringify(this.currentScopes));
     } catch (error) {
-      console.error('Failed to encrypt token:', error);
+      console.error('Failed to store token:', error);
       throw new Error('Failed to securely store access token');
     }
   }
@@ -282,9 +313,11 @@ export class GitHubAuth {
     this.accessToken = null;
     this.tokenExpiration = null;
     this.trackedRepository = null;
-    sessionStorage.removeItem('github_access_token');
-    sessionStorage.removeItem('github_token_expiration');
-    sessionStorage.removeItem('github_oauth_state');
+    this.currentScopes = [];
+    localStorage.removeItem('github_access_token');
+    localStorage.removeItem('github_token_expiration');
+    localStorage.removeItem('github_oauth_state');
+    localStorage.removeItem('github_scopes');
   }
 
   private async refreshTokenIfNeeded(): Promise<void> {
@@ -292,7 +325,6 @@ export class GitHubAuth {
       throw new Error('Not authenticated with GitHub');
     }
 
-    // Refresh token if it expires in less than 5 minutes
     if (Date.now() + 5 * 60 * 1000 > this.tokenExpiration) {
       const response = await fetch('/api/github/oauth/refresh', {
         method: 'POST',
@@ -307,32 +339,38 @@ export class GitHubAuth {
       }
 
       const data = await response.json();
-      await this.setAccessToken(data.access_token);
+      await this.setAccessToken(data.access_token, data.scope.split(' '));
     }
   }
 
-  private async handleTestScenario(scenario: string): Promise<GitHubUser> {
-    switch (scenario) {
-      case 'success':
-        return {
-          id: 'test_12345',
-          login: 'test-user',
-          name: 'Test User',
-          avatar_url: 'https://github.com/github.png',
-          email: 'test@example.com'
-        };
+  async handleTestScenario(scenario: string): Promise<void> {
+    console.log(`Testing scenario: ${scenario}`);
+    const testEndpoint = `/_api/github/oauth/test-errors?scenario=${scenario}`;
 
-      case 'invalid_token':
-        throw new Error('Invalid token');
+    try {
+      const response = await fetch(testEndpoint);
+      const data = await response.json();
+      console.log('Test scenario response:', data);
 
-      case 'network_error':
-        throw new Error('Network error');
-
-      case 'expired_token':
-        throw new Error('Token has expired');
-
-      default:
-        throw new Error(`Unknown test scenario: ${scenario}`);
+      if (!response.ok) {
+        switch (data.error) {
+          case 'expired_state':
+            throw new Error('Authentication expired. Please try logging in again.');
+          case 'bad_verification_code':
+            throw new Error('Invalid authentication code. Please try again.');
+          case 'service_unavailable':
+            throw new Error('GitHub authentication service is temporarily unavailable. Please try again later.');
+          case 'bad_access_token':
+            throw new Error('Your session has expired. Please log in again.');
+          case 'scope_denied':
+            throw new Error('Additional permissions are required. Please grant the requested permissions.');
+          default:
+            throw new Error(`An unexpected error occurred: ${data.message || 'Please try again.'}`);
+        }
+      }
+    } catch (error) {
+      console.error('Test scenario error:', error);
+      throw error;
     }
   }
 }

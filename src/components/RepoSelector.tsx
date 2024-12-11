@@ -19,6 +19,7 @@ export function RepoSelector() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRepo, setSelectedRepo] = useState<number | null>(null);
+  const [requestingPermissions, setRequestingPermissions] = useState(false);
   const auth = GitHubAuth.getInstance();
 
   useEffect(() => {
@@ -52,17 +53,29 @@ export function RepoSelector() {
     fetchRepos();
   }, []);
 
-  const filteredRepos = repositories.filter(repo => 
+  const filteredRepos = repositories.filter(repo =>
     repo.full_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleRepoSelect = async (repo: Repository) => {
     try {
       setSelectedRepo(repo.id);
+
+      // Check if we need additional permissions for private repos
+      if (repo.private && !auth.hasScope('repo')) {
+        setRequestingPermissions(true);
+        try {
+          await auth.requestPrivateRepoAccess();
+        } finally {
+          setRequestingPermissions(false);
+        }
+        return;
+      }
+
       const confirmed = window.confirm(
         `Are you sure you want to track ${repo.full_name}? This will be your primary repository for the rewards program.`
       );
-      
+
       if (confirmed) {
         await auth.setTrackedRepository(repo.full_name);
         await setTrackedRepository(repo.full_name);
@@ -96,7 +109,7 @@ export function RepoSelector() {
           <div className="p-6 border-b border-white/10">
             <h2 className="text-xl font-semibold text-white mb-2">Select Your Repository</h2>
             <p className="text-gray-400">
-              Choose the main repository you want to track for the rewards program. 
+              Choose the main repository you want to track for the rewards program.
               This will be your primary project for earning rewards.
             </p>
           </div>
@@ -108,7 +121,7 @@ export function RepoSelector() {
               <input
                 type="text"
                 placeholder="Search your repositories..."
-                className="w-full pl-10 pr-4 py-3 bg-white/5 rounded-lg border border-white/10 
+                className="w-full pl-10 pr-4 py-3 bg-white/5 rounded-lg border border-white/10
                          text-white placeholder-gray-400
                          focus:border-near-purple focus:ring-1 focus:ring-near-purple
                          transition-colors"
@@ -129,37 +142,48 @@ export function RepoSelector() {
                 {/* Repository count */}
                 <div className="text-sm text-gray-400 mb-4">
                   {filteredRepos.length === 0 ? (
-                    searchQuery ? 
-                      'No repositories found' : 
+                    searchQuery ?
+                      'No repositories found' :
                       'No repositories available'
                   ) : (
                     `${filteredRepos.length} ${filteredRepos.length === 1 ? 'repository' : 'repositories'} available`
                   )}
                 </div>
 
-                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 
+                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2
                               scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
                   {filteredRepos.map(repo => (
                     <button
                       key={repo.id}
                       onClick={() => handleRepoSelect(repo)}
-                      className={`w-full p-4 text-left rounded-lg 
+                      className={`w-full p-4 text-left rounded-lg
                                 transition-all duration-200 border
-                                ${selectedRepo === repo.id 
-                                  ? 'bg-near-purple/20 border-near-purple' 
+                                ${selectedRepo === repo.id
+                                  ? 'bg-near-purple/20 border-near-purple'
                                   : 'bg-white/5 border-white/10 hover:bg-near-purple/10 hover:border-near-purple/50'}
                                 group`}
-                      disabled={selectedRepo !== null && selectedRepo !== repo.id}
+                      disabled={selectedRepo !== null && selectedRepo !== repo.id ||
+                              (repo.private && !auth.hasScope('repo') && requestingPermissions)}
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <h3 className="font-medium text-white group-hover:text-near-purple 
+                          <h3 className="font-medium text-white group-hover:text-near-purple
                                        transition-colors flex items-center gap-2">
                             <Github className="w-4 h-4" />
                             {repo.full_name}
                             {repo.private && (
-                              <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">
-                                Private
+                              <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <Shield className="w-3 h-3" />
+                                {requestingPermissions ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                    Requesting Access...
+                                  </>
+                                ) : (
+                                  <>
+                                    Private {!auth.hasScope('repo') && '(Requires Permission)'}
+                                  </>
+                                )}
                               </span>
                             )}
                           </h3>
@@ -170,7 +194,7 @@ export function RepoSelector() {
                             Last updated {new Date(repo.updated_at).toLocaleDateString()}
                           </div>
                         </div>
-                        <ExternalLink className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 
+                        <ExternalLink className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100
                                                transition-opacity" />
                       </div>
                     </button>
@@ -179,7 +203,7 @@ export function RepoSelector() {
                   {filteredRepos.length === 0 && searchQuery && (
                     <div className="text-center py-8">
                       <p className="text-gray-400">No repositories match your search.</p>
-                      <button 
+                      <button
                         onClick={() => setSearchQuery('')}
                         className="text-near-purple hover:text-near-purple/80 text-sm mt-2"
                       >
@@ -198,17 +222,17 @@ export function RepoSelector() {
               <Shield className="w-5 h-5 text-near-purple mt-1" />
               <div className="space-y-2">
                 <p className="text-sm text-gray-400">
-                  We request repository access to track your development activity 
-                  for the rewards program. You control which specific repository is tracked, 
+                  We request repository access to track your development activity
+                  for the rewards program. You control which specific repository is tracked,
                   and we only collect metrics for your selected repository.
                 </p>
                 <p className="text-sm text-gray-400">
-                  Your data is securely handled and only used for calculating rewards. 
+                  Your data is securely handled and only used for calculating rewards.
                   Learn more in our{' '}
                   <a href="https://near.org/privacy"
                      target="_blank"
                      rel="noopener noreferrer"
-                     className="text-near-purple hover:text-near-purple/80 
+                     className="text-near-purple hover:text-near-purple/80
                               underline transition-colors">
                     Privacy Policy
                   </a>.
