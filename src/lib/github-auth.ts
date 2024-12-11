@@ -128,18 +128,18 @@ export class GitHubAuth {
     sessionStorage.setItem('oauth_state', JSON.stringify(stateObj));
 
     const params = new URLSearchParams({
-      client_id: GITHUB_CLIENT_ID,
+      client_id: import.meta.env.VITE_GITHUB_CLIENT_ID,
       redirect_uri: `${window.location.origin}/auth/callback`,
       scope: 'read:user user:email',
       state: JSON.stringify(stateObj)
     });
 
     // For testing, use our test endpoint
-    if (import.meta.env.DEV) {
-      return `${window.location.origin}/api/github/oauth/test-errors?${params.toString()}`;
-    }
+    const baseUrl = import.meta.env.DEV
+      ? '/_api/github/oauth/test-errors'
+      : 'https://github.com/login/oauth/authorize';
 
-    return `https://github.com/login/oauth/authorize?${params.toString()}`;
+    return `${baseUrl}?${params.toString()}`;
   }
 
   async handleCallback(code: string, state: string): Promise<GitHubUser> {
@@ -312,6 +312,7 @@ export class GitHubAuth {
     this.tokenExpiration = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
     if (scopes) {
       this.currentScopes = scopes;
+      localStorage.setItem('github_scopes', JSON.stringify(scopes));
     }
 
     try {
@@ -322,7 +323,6 @@ export class GitHubAuth {
       const encryptedToken = await this.encryptToken(token);
       localStorage.setItem('github_access_token', encryptedToken);
       localStorage.setItem('github_token_expiration', this.tokenExpiration.toString());
-      localStorage.setItem('github_scopes', JSON.stringify(this.currentScopes));
     } catch (error) {
       console.error('Failed to store token:', error);
       throw new Error('Failed to securely store access token');

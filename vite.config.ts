@@ -13,6 +13,11 @@ const config = {
         changeOrigin: true,
         rewrite: (path: string) => path.replace(/^\/api/, '/_api'),
         secure: false
+      },
+      '/_api': {
+        target: 'http://localhost:5173',
+        changeOrigin: true,
+        secure: false
       }
     }
   },
