@@ -131,42 +131,37 @@ export class GitHubAuth {
       client_id: import.meta.env.VITE_GITHUB_CLIENT_ID,
       redirect_uri: `${window.location.origin}/auth/callback`,
       scope: 'read:user user:email',
-      state: JSON.stringify(stateObj)
+      state: stateObj.state, // Only pass the state UUID
+      scenario: 'success' // Explicitly set success scenario for testing
     });
 
-    // For testing, use our test endpoint
+    // For testing, use our test endpoint with absolute URL
     const baseUrl = import.meta.env.DEV
-      ? '/_api/github/oauth/test-errors'
+      ? `${window.location.origin}/_api/github/oauth/test-errors`
       : 'https://github.com/login/oauth/authorize';
 
-    return `${baseUrl}?${params.toString()}`;
+    const url = `${baseUrl}?${params.toString()}`;
+    console.log('Generated OAuth URL:', url); // Add logging
+    return url;
   }
 
   async handleCallback(code: string, state: string): Promise<GitHubUser> {
     try {
       // Validate state
-      const storedState = sessionStorage.getItem('oauth_state');
-      if (!storedState) {
+      const storedStateJson = sessionStorage.getItem('oauth_state');
+      if (!storedStateJson) {
         throw new Error('No stored state found');
       }
 
-      let stateObj: { state: string; timestamp: number };
-      let parsedState: { state: string; timestamp: number };
+      const storedState = JSON.parse(storedStateJson);
 
-      try {
-        stateObj = JSON.parse(storedState);
-        parsedState = JSON.parse(state);
-      } catch (error) {
-        console.error('State parsing error:', error);
-        throw new Error('Invalid state parameter format');
-      }
-
-      if (stateObj.state !== parsedState.state) {
+      // Compare the received state with the stored state UUID
+      if (storedState.state !== state) {
         throw new Error('State mismatch');
       }
 
       // Check if state has expired (10 minute window)
-      if (Date.now() - parsedState.timestamp > 10 * 60 * 1000) {
+      if (Date.now() - storedState.timestamp > 10 * 60 * 1000) {
         throw new Error('State has expired');
       }
 
