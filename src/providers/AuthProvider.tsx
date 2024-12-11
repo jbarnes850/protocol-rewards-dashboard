@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
-        const token = githubAuth.getAccessToken();
+        const token = await githubAuth.getAccessToken();
         if (!token) {
           if (isGitHubConnected) {
             setIsGitHubConnected(false);
@@ -90,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const token = githubAuth.getAccessToken();
+        const token = await githubAuth.getAccessToken();
         if (token) {
           setIsGitHubConnected(true);
           await loadUserData();

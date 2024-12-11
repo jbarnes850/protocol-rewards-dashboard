@@ -226,8 +226,37 @@ export class GitHubAuth {
     }
   }
 
-  getAccessToken(): string | null {
-    return this.accessToken;
+  public async getAccessToken(): Promise<string | null> {
+    // If we have a token in memory, use it
+    if (this.accessToken) return this.accessToken;
+
+    // Otherwise try to get it from storage
+    return await this.getStoredToken();
+  }
+
+  private async getStoredToken(): Promise<string | null> {
+    try {
+      const encryptedToken = localStorage.getItem('github_access_token');
+      if (!encryptedToken) return null;
+
+      // Decrypt token
+      const token = await this.decryptToken(encryptedToken);
+
+      // Check token expiration
+      const timestamp = localStorage.getItem('token_timestamp');
+      if (timestamp) {
+        const tokenAge = Date.now() - parseInt(timestamp);
+        if (tokenAge > 3600000) { // 1 hour expiration
+          this.logout(); // Clear expired token
+          return null;
+        }
+      }
+
+      return token;
+    } catch (error) {
+      console.error('Failed to retrieve stored token:', error);
+      return null;
+    }
   }
 
   hasScope(scope: string): boolean {
@@ -303,24 +332,27 @@ export class GitHubAuth {
   }
 
   private async setAccessToken(token: string, scopes?: string[]): Promise<void> {
-    this.accessToken = token;
-    this.tokenExpiration = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
-    if (scopes) {
-      this.currentScopes = scopes;
-      localStorage.setItem('github_scopes', JSON.stringify(scopes));
-    }
-
     try {
-      // Test localStorage availability
-      localStorage.setItem('test', 'test');
-      localStorage.removeItem('test');
+      // Store in memory
+      this.accessToken = token;
+      if (scopes) {
+        this.currentScopes = scopes;
+        localStorage.setItem('github_scopes', JSON.stringify(scopes));
+      }
 
+      // Encrypt token before storing
       const encryptedToken = await this.encryptToken(token);
+
+      // Store encrypted token in localStorage for persistence
       localStorage.setItem('github_access_token', encryptedToken);
-      localStorage.setItem('github_token_expiration', this.tokenExpiration.toString());
+
+      // Store token timestamp for expiration checking
+      localStorage.setItem('token_timestamp', Date.now().toString());
+
+      console.log('Token stored successfully');
     } catch (error) {
-      console.error('Failed to store token:', error);
-      throw new Error('Failed to securely store access token');
+      console.error('Failed to store access token:', error);
+      throw new Error('Failed to store access token securely');
     }
   }
 
@@ -330,7 +362,7 @@ export class GitHubAuth {
     this.trackedRepository = null;
     this.currentScopes = [];
     localStorage.removeItem('github_access_token');
-    localStorage.removeItem('github_token_expiration');
+    localStorage.removeItem('token_timestamp');
     localStorage.removeItem('github_oauth_state');
     localStorage.removeItem('github_scopes');
   }
