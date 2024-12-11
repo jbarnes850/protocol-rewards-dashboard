@@ -3,28 +3,45 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 // Test endpoint to simulate various OAuth error scenarios
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
+    console.log('Request method:', req.method);
+    console.log('Request query parameters:', req.query);
+    console.log('Request headers:', req.headers);
+
     // Ensure proper type handling for query parameters
-    const scenario = typeof req.query.scenario === 'string' ? req.query.scenario : 'success';
+    const scenario = typeof req.query.scenario === 'string' ? req.query.scenario : undefined;
     const redirect_uri = typeof req.query.redirect_uri === 'string' ? req.query.redirect_uri : '';
     const state = typeof req.query.state === 'string' ? req.query.state : '';
+
+    console.log('Parsed parameters:', { scenario, redirect_uri, state });
 
     // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 500));
 
     // Handle initial OAuth redirect (GET request)
     if (req.method === 'GET') {
-      // Parse state parameter
+      // Parse state parameter - handle both UUID-only and JSON formats
       let stateObj;
       try {
+        // First try parsing as JSON
         stateObj = state ? JSON.parse(decodeURIComponent(state)) : null;
-        if (!stateObj || !stateObj.state || !stateObj.timestamp) {
-          throw new Error('Invalid state format');
-        }
       } catch (error) {
-        return res.status(400).json({
-          error: 'invalid_state',
-          message: 'Invalid state parameter format'
-        });
+        // If JSON parsing fails, check if it's a valid UUID format
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (state && uuidRegex.test(state)) {
+          stateObj = { state, timestamp: Date.now() };
+        } else {
+          return res.status(400).json({
+            error: 'invalid_state',
+            message: 'Invalid state parameter format'
+          });
+        }
+      }
+
+      // Validate scenario
+      const validScenarios = ['success', 'expired_state', 'invalid_token', 'network_error', 'scope_denied'];
+      if (!scenario || !validScenarios.includes(scenario)) {
+        console.log('Invalid or missing scenario, defaulting to success');
+        return handleSuccessScenario(res, redirect_uri, state);
       }
 
       // Default to success scenario if none specified
@@ -117,4 +134,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       message: 'An unexpected error occurred'
     });
   }
+}
+
+function handleSuccessScenario(res: VercelResponse, redirect_uri: string, state: string) {
+  const code = 'test_success_code_' + Date.now();
+  console.log('Handling success scenario:', { redirect_uri, state, code });
+  return res.redirect(302, `${redirect_uri}?code=${code}&state=${encodeURIComponent(state)}`);
 }
