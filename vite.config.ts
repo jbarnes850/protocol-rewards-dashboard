@@ -7,6 +7,18 @@ export default defineConfig({
     port: process.env.PORT as unknown as number || 5173,
     host: true, // Allow external access
     strictPort: true, // Fail if port is already in use
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5173',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '/_api'),
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('proxy error', err);
+          });
+        }
+      }
+    }
   },
   plugins: [react(), vercel()],
   vercel: {
