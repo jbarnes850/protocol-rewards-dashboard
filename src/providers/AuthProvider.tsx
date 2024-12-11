@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { GitHubAuth } from '../lib/github-auth';
 import { NEARProtocolRewardsSDK } from '../lib/mock-sdk';
 import { toast } from 'sonner';
@@ -169,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(errorDescription);
       }
 
-      const githubUser = await githubAuth.handleCallback(code, state);
+      await githubAuth.handleCallback(code, state);
       setIsGitHubConnected(true);
       await loadUserData();
     } catch (error) {

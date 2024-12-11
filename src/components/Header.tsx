@@ -1,7 +1,7 @@
-import React from 'react';
-import { Sun, Moon, Github, LogOut, Share2 } from 'lucide-react';
+import { Sun, Moon, Github, LogOut, Share2, XCircle } from 'lucide-react';
 import { useAuth } from '../providers/AuthProvider';
 import { useTheme } from '../providers/ThemeProvider';
+import { Button } from './ui/Button';
 import { Spinner } from './ui/Spinner';
 
 export function Header() {
@@ -33,14 +33,13 @@ export function Header() {
           </div>
 
           <div className="flex items-center space-x-2 sm:space-x-4">
-            {/* Error message */}
             {error && (
               <div className="absolute top-20 right-4 bg-destructive/90 text-white px-4 py-2 rounded-lg shadow-lg">
+                <XCircle className="inline-block mr-2 h-4 w-4" />
                 {error}
               </div>
             )}
 
-            {/* Theme toggle */}
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg hover:bg-white/10 transition-colors"
@@ -52,7 +51,6 @@ export function Header() {
               )}
             </button>
 
-            {/* Share button */}
             <button
               onClick={shareProgress}
               className="hidden sm:flex items-center gap-2 px-3 py-1.5
@@ -63,10 +61,8 @@ export function Header() {
               <span className="text-sm">Share</span>
             </button>
 
-            {/* User section */}
             {user ? (
               <div className="flex items-center gap-2 sm:gap-4">
-                {/* Repository indicator - only show when a repo is tracked */}
                 {user.trackedRepository && (
                   <div className="hidden md:flex items-center gap-2 px-3 py-1.5
                               bg-near-purple/5 border border-near-purple/10 rounded-lg">
@@ -107,13 +103,11 @@ export function Header() {
                 </button>
               </div>
             ) : (
-              <button
+              <Button
                 onClick={loginWithGitHub}
                 disabled={loading}
-                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-near-purple text-white rounded-lg
-                         hover:bg-near-purple/90 transition-all duration-200 shadow-lg shadow-near-purple/20
-                         disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base
-                         relative"
+                variant={error ? "destructive" : "default"}
+                className="flex items-center gap-2"
                 aria-label={loading ? 'Connecting to GitHub...' : 'Connect GitHub'}
               >
                 {loading ? (
@@ -129,7 +123,7 @@ export function Header() {
                     <span className="sm:hidden">Connect</span>
                   </>
                 )}
-              </button>
+              </Button>
             )}
           </div>
         </div>
