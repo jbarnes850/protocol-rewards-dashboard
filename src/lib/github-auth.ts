@@ -118,26 +118,25 @@ export class GitHubAuth {
     return GitHubAuth.instance;
   }
 
-  getLoginUrl(additionalScopes?: string[]): string {
-    const state = crypto.randomUUID();
+  getLoginUrl(): string {
     const stateObj = {
-      state,
-      timestamp: Date.now(),
-      additionalScopes
+      state: crypto.randomUUID(),
+      timestamp: Date.now()
     };
 
-    const baseScopes = ['read:user', 'user:email'];
-    const scopes = additionalScopes ? [...baseScopes, ...additionalScopes] : baseScopes;
+    // Store state for validation
+    sessionStorage.setItem('oauth_state', JSON.stringify(stateObj));
 
     const params = new URLSearchParams({
       client_id: GITHUB_CLIENT_ID,
       redirect_uri: `${window.location.origin}/auth/callback`,
-      scope: scopes.join(' '),
+      scope: 'read:user user:email',
       state: JSON.stringify(stateObj)
     });
 
+    // For testing, use our test endpoint
     if (import.meta.env.DEV) {
-      return `/api/github/oauth/test-errors?scenario=success&${params.toString()}`;
+      return `${window.location.origin}/api/github/oauth/test-errors?${params.toString()}`;
     }
 
     return `https://github.com/login/oauth/authorize?${params.toString()}`;
@@ -145,14 +144,34 @@ export class GitHubAuth {
 
   async handleCallback(code: string, state: string): Promise<GitHubUser> {
     try {
-      // Validate state parameter
-      const storedState = localStorage.getItem('github_oauth_state');
-      if (!storedState || storedState !== state) {
-        throw new Error('Invalid state parameter');
+      // Validate state
+      const storedState = sessionStorage.getItem('oauth_state');
+      if (!storedState) {
+        throw new Error('No stored state found');
+      }
+
+      let stateObj: { state: string; timestamp: number };
+      let parsedState: { state: string; timestamp: number };
+
+      try {
+        stateObj = JSON.parse(storedState);
+        parsedState = JSON.parse(state);
+      } catch (error) {
+        console.error('State parsing error:', error);
+        throw new Error('Invalid state parameter format');
+      }
+
+      if (stateObj.state !== parsedState.state) {
+        throw new Error('State mismatch');
+      }
+
+      // Check if state has expired (10 minute window)
+      if (Date.now() - parsedState.timestamp > 10 * 60 * 1000) {
+        throw new Error('State has expired');
       }
 
       // Clear stored state
-      localStorage.removeItem('github_oauth_state');
+      sessionStorage.removeItem('oauth_state');
 
       // Handle test scenarios in development
       if (import.meta.env.DEV && code.startsWith('test_')) {
@@ -175,7 +194,7 @@ export class GitHubAuth {
       }
 
       // Exchange code for access token
-      const tokenResponse = await fetch('/_api/github/oauth/token', {
+      const tokenResponse = await fetch('/api/github/oauth/token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -224,7 +243,8 @@ export class GitHubAuth {
     if (this.hasScope('repo')) {
       return;
     }
-    window.location.href = this.getLoginUrl(['repo']);
+    const loginUrl = this.getLoginUrl();
+    window.location.href = loginUrl;
   }
 
   async getCurrentUser(): Promise<GitHubUser> {
@@ -345,7 +365,7 @@ export class GitHubAuth {
 
   async handleTestScenario(scenario: string): Promise<void> {
     console.log(`Testing scenario: ${scenario}`);
-    const testEndpoint = `/_api/github/oauth/test-errors?scenario=${scenario}`;
+    const testEndpoint = `/api/github/oauth/test-errors?scenario=${scenario}`;
 
     try {
       const response = await fetch(testEndpoint);

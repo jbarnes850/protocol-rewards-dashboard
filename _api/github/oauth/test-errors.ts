@@ -9,10 +9,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Handle initial OAuth redirect (GET request)
   if (req.method === 'GET') {
+    // Parse state parameter
+    let stateObj;
+    try {
+      stateObj = typeof state === 'string' ? JSON.parse(state) : null;
+      if (!stateObj || !stateObj.state || !stateObj.timestamp) {
+        throw new Error('Invalid state format');
+      }
+    } catch (error) {
+      return res.status(400).json({
+        error: 'invalid_state',
+        message: 'Invalid state parameter format'
+      });
+    }
+
     switch (scenario) {
       case 'success':
         const code = 'test_success_code_' + Date.now();
-        return res.redirect(302, `${redirect_uri}?code=${code}&state=${state}`);
+        // Include scenario parameter in redirect for proper test flow
+        const redirectUrl = `${redirect_uri}?code=${code}&state=${state}&scenario=success`;
+        return res.redirect(302, redirectUrl);
 
       case 'expired_state':
         return res.status(401).json({

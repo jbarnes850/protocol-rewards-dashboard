@@ -39,10 +39,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    // Handle test scenarios
+    if (code.startsWith('test_success_code_')) {
+      return res.status(200).json({
+        access_token: 'test_access_token_' + Date.now(),
+        token_type: 'bearer',
+        scope: 'read:user,user:email'
+      });
+    }
+
     const host = req.headers['host'];
     const protocol = req.headers['x-forwarded-proto'] || 'https';
     const appUrl = `${protocol}://${host}`;
 
+    // For real GitHub OAuth requests
     const response = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
@@ -74,7 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error('GitHub API error:', data);
       return res.status(response.status).json({
         error: 'github_api_error',
-        message: 'Failed to exchange code for access token',
+        message: 'Failed to exchange code for token',
         details: data
       });
     }
