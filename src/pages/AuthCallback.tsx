@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../providers/AuthProvider';
+import { Spinner } from '../components/ui/Spinner';
 
 export function AuthCallback() {
   const [searchParams] = useSearchParams();
@@ -49,8 +50,9 @@ export function AuthCallback() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="text-lg text-gray-400">Authenticating...</div>
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+      <Spinner className="w-8 h-8 text-blue-500" />
+      <div className="text-lg text-gray-400">Authenticating with GitHub...</div>
     </div>
   );
 }
