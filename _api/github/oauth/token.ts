@@ -14,10 +14,12 @@ const requiredEnvVars = {
   GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
 };
 
-// Validate all required environment variables are present
+// Validate all required environment variables
 Object.entries(requiredEnvVars).forEach(([key, value]) => {
   if (!value) {
     throw new Error(`Missing required environment variable: ${key}`);
+  } else if (key === 'GITHUB_CLIENT_SECRET' && !/^[a-f0-9]{40}$/i.test(value)) {
+    throw new Error(`Invalid ${key} format. Expected 40-character hexadecimal string.`);
   }
 });
 

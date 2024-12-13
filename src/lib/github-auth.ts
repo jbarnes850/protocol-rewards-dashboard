@@ -1,5 +1,19 @@
 const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID;
 
+function validateEnvironmentVariables() {
+  const errors: string[] = [];
+
+  if (!GITHUB_CLIENT_ID) {
+    errors.push('VITE_GITHUB_CLIENT_ID is not configured. Please check your .env file.');
+  } else if (!/^[a-zA-Z0-9]+$/.test(GITHUB_CLIENT_ID)) {
+    errors.push('VITE_GITHUB_CLIENT_ID appears to be invalid. It should only contain alphanumeric characters.');
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Environment configuration errors:\n${errors.join('\n')}`);
+  }
+}
+
 interface GitHubRepository {
   id: number;
   name: string;
@@ -29,6 +43,12 @@ export class GitHubAuth {
   private authStateListeners: Array<(isAuthenticated: boolean) => void> = [];
 
   private constructor() {
+    try {
+      validateEnvironmentVariables();
+    } catch (error) {
+      console.error('Environment validation failed:', error);
+      throw error;
+    }
     // Initialize encryption key
     this.encryptionReady = this.initializeEncryptionKey().then(async () => {
       try {
