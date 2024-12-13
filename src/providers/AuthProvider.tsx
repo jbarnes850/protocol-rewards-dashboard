@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { GitHubAuth } from '../lib/github-auth';
 import { NEARProtocolRewardsSDK } from '../lib/mock-sdk';
 import { toast } from 'sonner';
@@ -38,6 +38,7 @@ interface AuthContextType {
   loginWithGitHub: () => void;
   logout: () => void;
   loading: boolean;
+  error: string | null;
   isGitHubConnected: boolean;
   handleGitHubCallback: (code: string, state: string) => Promise<void>;
   setTrackedRepository: (repoFullName: string) => Promise<void>;
@@ -53,19 +54,70 @@ const sdk = new NEARProtocolRewardsSDK({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isGitHubConnected, setIsGitHubConnected] = useState(false);
 
+  // Check authentication status periodically
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      try {
+        console.log('Checking auth status...');
+        const token = await githubAuth.getAccessToken();
+        console.log('Current auth data in localStorage:', {
+          token: token ? 'present' : null,
+          expiration: localStorage.getItem('github_token_expiration'),
+          scopes: localStorage.getItem('github_token_scopes'),
+          state: localStorage.getItem('github_oauth_state')
+        });
+
+        if (token) {
+          setIsGitHubConnected(true);
+          if (!user) {
+            console.log('Token found but no user data, loading user...');
+            await loadUserData();
+          }
+        } else {
+          console.log('No valid token found, setting disconnected state');
+          setIsGitHubConnected(false);
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        setIsGitHubConnected(false);
+        setUser(null);
+      }
+    };
+
+    // Initial check
+    checkAuthStatus();
+
+    // Set up periodic checks
+    const interval = setInterval(checkAuthStatus, 60000);
+    return () => clearInterval(interval);
+  }, [githubAuth, user]);
+
+  // Initial auth check
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const githubToken = githubAuth.getAccessToken();
-        if (githubToken) {
+        setLoading(true);
+        console.log('Starting initial auth check...');
+
+        // Wait for encryption to be ready
+        await githubAuth.waitForEncryption();
+        console.log('Encryption ready for initial check');
+
+        const token = await githubAuth.getAccessToken();
+        console.log('Initial token check:', token ? 'found' : 'not found');
+
+        if (token) {
           setIsGitHubConnected(true);
-          await correlateUserData(githubToken);
+          await loadUserData();
         }
       } catch (error) {
         console.error('Failed to initialize authentication:', error);
         toast.error('Failed to load user data');
+        setIsGitHubConnected(false);
       } finally {
         setLoading(false);
       }
@@ -74,13 +126,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth();
   }, []);
 
-  const correlateUserData = async (githubToken: string) => {
+  const loadUserData = async () => {
     try {
       const githubUser = await githubAuth.getCurrentUser();
       const sdkMetrics = await sdk.getUserMetrics(githubUser.login);
 
       updateUser({
-        id: githubUser.id,
+        id: githubUser.id.toString(), // Convert number to string
         name: githubUser.name,
         avatar: githubUser.avatar_url,
         githubUsername: githubUser.login,
@@ -94,13 +146,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       });
     } catch (error) {
-      console.error('Failed to correlate user data:', error);
+      console.error('Failed to load user data:', error);
       toast.error('Failed to load complete metrics');
+      // If the error is auth-related, reset the connection
+      if (error instanceof Error && error.message.includes('Not authenticated')) {
+        setIsGitHubConnected(false);
+        setUser(null);
+      }
     }
   };
 
   const updateUser = (data: Partial<User>) => {
-    setUser(prev => {
+    setUser((prev: User | null) => {
       if (!prev && !data.id) return null;
       return {
         ...prev,
@@ -111,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           progress: 0,
           nextMilestone: 250,
         },
-      };
+      } as User;
     });
   };
 
@@ -121,12 +178,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const handleGitHubCallback = async (code: string, state: string) => {
     try {
-      const githubUser = await githubAuth.handleCallback(code, state);
+      setLoading(true);
+      setError(null);
+
+      // Check for OAuth error parameters in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('error')) {
+        const errorDescription = urlParams.get('error_description') || 'Authentication failed';
+        throw new Error(errorDescription);
+      }
+
+      // Handle the callback and store token
+      await githubAuth.handleCallback(code, state);
       setIsGitHubConnected(true);
-      await correlateUserData(githubUser);
+
+      // Load user data after successful authentication
+      await loadUserData();
+
+      // Clear OAuth state after successful authentication
+      localStorage.removeItem('github_oauth_state');
     } catch (error) {
       console.error('GitHub callback error:', error);
+      setError(error instanceof Error ? error.message : 'Authentication failed');
+      setIsGitHubConnected(false);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -160,13 +237,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        user, 
+    <AuthContext.Provider
+      value={{
+        user,
         loginWithGitHub,
         handleGitHubCallback,
         logout,
         loading,
+        error,
         isGitHubConnected,
         setTrackedRepository
       }}
@@ -176,10 +254,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useAuth() {
+// Export the hook as a named export for better compatibility with Fast Refresh
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
+};
