@@ -1,51 +1,52 @@
-import { NEARProtocolRewardsSDK } from './mock-sdk';
-import type { GitHubMetrics, NEARMetrics } from './types';
+import { NEARProtocolRewardsSDK } from './real-sdk';
+import type { GitHubMetrics, NEARMetrics, RewardCalculation } from './types';
 
 export class SDKManager {
-  private sdk: NEARProtocolRewardsSDK;
+  private sdk: NEARProtocolRewardsSDK | null = null;
+  private token: string | null = null;
+  private projectId: string | null = null;
+  private initialized = false;
 
   constructor() {
-    this.sdk = new NEARProtocolRewardsSDK({
-      projectId: localStorage.getItem('tracked_repository') || ''
-    });
+    // Initialize with null values, will be set during initialize()
   }
 
-  async getUserMetrics(githubUsername: string) {
-    return this.sdk.getUserMetrics(githubUsername);
+  async initialize(token: string, projectId?: string | null): Promise<void> {
+    if (!this.initialized || token !== this.token || projectId !== this.projectId) {
+      this.token = token;
+      this.projectId = projectId || 'default';
+      this.sdk = new NEARProtocolRewardsSDK({
+        projectId: this.projectId,
+        token: this.token
+      });
+      this.initialized = true;
+    }
   }
 
-  async calculateRewards(metrics: GitHubMetrics, _nearMetrics: NEARMetrics) {
-    // For now, we're only using GitHub metrics
-    // NEAR metrics will be zeros
-    const emptyNearMetrics: NEARMetrics = {
-      transactions: {
-        count: 0,
-        volume: 0,
-        quality: 0,
-        score: 0
-      },
-      contracts: {
-        interactions: 0,
-        uniqueCallers: 0,
-        usagePatterns: 0,
-        score: 0
-      },
-      users: {
-        total: 0,
-        retention: 0,
-        growthRate: 0,
-        score: 0
-      }
-    };
+  async getUserMetrics(projectId?: string | null): Promise<GitHubMetrics> {
+    if (!this.initialized || !this.sdk) {
+      throw new Error('SDK not initialized. Call initialize() first.');
+    }
 
-    // Transform metrics to match expected format
-    const githubMetrics: GitHubMetrics = {
+    const metrics = await this.sdk.getMetrics(projectId || this.projectId || 'default');
+    return {
       commits: metrics.commits,
       pullRequests: metrics.pullRequests,
       issues: metrics.issues
-      // Removed reviews as it's not in the type
+    };
+  }
+
+  async calculateRewards(metrics: GitHubMetrics, projectId?: string | null): Promise<RewardCalculation> {
+    if (!this.initialized || !this.sdk) {
+      throw new Error('SDK not initialized. Call initialize() first.');
+    }
+
+    const emptyNearMetrics: NEARMetrics = {
+      transactions: { count: 0, volume: 0, quality: 0, score: 0 },
+      contracts: { interactions: 0, uniqueCallers: 0, usagePatterns: 0, score: 0 },
+      users: { total: 0, retention: 0, growthRate: 0, score: 0 }
     };
 
-    return this.sdk.calculateRewards(githubMetrics, emptyNearMetrics);
+    return this.sdk.calculateRewards(metrics, emptyNearMetrics);
   }
 } 
