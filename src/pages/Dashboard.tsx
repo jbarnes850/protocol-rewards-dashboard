@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../providers/AuthProvider';
 import { RepoSelector } from '../components/RepoSelector';
 import { ProjectOverview } from '../components/ProjectOverview';
@@ -10,14 +12,35 @@ import { Footer } from '../components/Footer';
 import { NetworkStats } from '../components/NetworkStats';
 import { Spinner } from '../components/ui/Spinner';
 import { TestErrorScenarios } from '../components/TestErrorScenarios';
+import { toast } from 'sonner';
 
 export function Dashboard() {
-  const { user, loading } = useAuth();
+  const { user, loading, error } = useAuth();
+  const location = useLocation();
+
+  // Handle auth error from callback
+  useEffect(() => {
+    const authError = location.state?.error;
+    if (authError) {
+      toast.error(authError);
+      // Clear the error from location state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   if (loading) {
     return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <Spinner className="w-8 h-8 text-blue-500" />
+        <div className="text-lg text-gray-400">Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
       <div className="flex items-center justify-center min-h-screen">
-        <Spinner className="w-8 h-8" />
+        <div className="text-red-500 text-lg">{error}</div>
       </div>
     );
   }
@@ -42,12 +65,10 @@ export function Dashboard() {
           {user && (
             <div className="space-y-12">
               <ProjectOverview />
-
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <PersonalProgress />
                 <DeveloperMetrics />
               </div>
-
               <PriorityActions />
               <ActivityFeed />
             </div>
