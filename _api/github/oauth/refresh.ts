@@ -32,7 +32,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const currentToken = authHeader.substring(7);
 
   try {
-    // Exchange the current token for a new one
+    // Verify the current token first
+    const verifyResponse = await fetch('https://api.github.com/user', {
+      headers: {
+        'Authorization': `Bearer ${currentToken}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    if (verifyResponse.ok) {
+      // Token is still valid, extend its lifetime
+      return res.status(200).json({
+        access_token: currentToken,
+        expires_in: 3600 // 1 hour
+      });
+    }
+
+    // If token is invalid, get a new one using client credentials
     const response = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
@@ -42,8 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         client_id: requiredEnvVars.VITE_GITHUB_CLIENT_ID,
         client_secret: requiredEnvVars.GITHUB_CLIENT_SECRET,
-        grant_type: 'refresh_token',
-        refresh_token: currentToken
+        access_token: currentToken // GitHub's way of refreshing tokens
       }),
     });
 
@@ -57,7 +72,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    return res.status(200).json(data);
+    return res.status(200).json({
+      access_token: data.access_token,
+      expires_in: 3600 // 1 hour
+    });
   } catch (error) {
     console.error('Token refresh error:', error);
     return res.status(500).json({

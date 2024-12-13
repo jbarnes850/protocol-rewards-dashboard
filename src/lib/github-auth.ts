@@ -436,39 +436,67 @@ export class GitHubAuth {
   }
 
   private async refreshTokenIfNeeded(): Promise<boolean> {
-    if (!this.accessToken || !this.tokenExpiration) {
-      return false;
-    }
+    try {
+      const token = await this.getAccessToken();
+      if (!token) {
+        return false;
+      }
 
-    // Check if token is expired or about to expire (within 5 minutes)
-    const expirationBuffer = 5 * 60 * 1000; // 5 minutes
-    if (Date.now() + expirationBuffer >= this.tokenExpiration) {
-      try {
+      // Check if token is close to expiration (within 5 minutes)
+      const expirationStr = localStorage.getItem('github_token_expiration');
+      if (!expirationStr) {
+        return false;
+      }
+
+      const expiration = parseInt(expirationStr, 10);
+      const fiveMinutes = 5 * 60 * 1000;
+
+      if (Date.now() + fiveMinutes >= expiration) {
+        console.log('Token is about to expire, attempting refresh...');
+
+        // Attempt to refresh the token
         const response = await fetch('/_api/github/oauth/refresh', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            token: this.accessToken,
-          }),
+            'Authorization': `Bearer ${token}`
+          }
         });
 
         if (!response.ok) {
-          throw new Error('Token refresh failed');
+          console.warn('Token refresh failed:', await response.text());
+          // If refresh fails, clear the token and notify listeners
+          this.logout();
+          return false;
         }
 
-        const data = await response.json();
-        await this.setAccessToken(data.access_token, data.scope?.split(',') || this.currentScopes);
-        return true;
-      } catch (error) {
-        console.error('Failed to refresh token:', error);
-        this.logout();
-        return false;
-      }
-    }
+        const { access_token, expires_in } = await response.json();
+        if (!access_token) {
+          throw new Error('No access token received during refresh');
+        }
 
-    return true;
+        // Calculate new expiration time based on expires_in
+        const newExpiration = Date.now() + (expires_in * 1000);
+
+        // Update token and expiration
+        this.accessToken = access_token;
+        this.tokenExpiration = newExpiration;
+
+        // Store the refreshed token
+        const encryptedToken = await this.encryptToken(access_token);
+        localStorage.setItem('github_access_token', encryptedToken);
+        localStorage.setItem('github_token_expiration', newExpiration.toString());
+
+        console.log('Token refreshed successfully');
+        return true;
+      }
+
+      return true; // Token is still valid
+    } catch (error) {
+      console.error('Error during token refresh:', error);
+      this.logout();
+      return false;
+    }
   }
 
   async handleTestScenario(scenario: string): Promise<void> {
