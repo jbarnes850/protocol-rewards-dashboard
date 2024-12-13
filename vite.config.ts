@@ -29,8 +29,9 @@ const config = {
             if (req.url?.startsWith('/_api/github/oauth/test-errors')) {
               const vercelReq = {
                 ...req,
-                query: Object.fromEntries(new URLSearchParams(req.url.split('?')[1])),
-                body: {}
+                query: Object.fromEntries(new URLSearchParams(req.url.split('?')[1] || '')),
+                body: {},
+                method: req.method
               } as unknown as VercelRequest;
 
               const vercelRes = {
@@ -51,17 +52,44 @@ const config = {
                 }
               } as unknown as VercelResponse;
 
-              import('./_api/github/oauth/test-errors').then(module => {
-                module.default(vercelReq, vercelRes).catch((error: Error) => {
-                  console.error('Test endpoint error:', error);
-                  res.statusCode = 500;
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({
-                    error: 'internal_server_error',
-                    message: error.message
-                  }));
+              // Handle POST request body
+              if (req.method === 'POST') {
+                let body = '';
+                req.on('data', chunk => {
+                  body += chunk.toString();
                 });
-              });
+                req.on('end', () => {
+                  try {
+                    vercelReq.body = JSON.parse(body);
+                  } catch (error) {
+                    console.error('Error parsing request body:', error);
+                    vercelReq.body = {};
+                  }
+                  import('./_api/github/oauth/test-errors').then(module => {
+                    module.default(vercelReq, vercelRes).catch((error: Error) => {
+                      console.error('Test endpoint error:', error);
+                      res.statusCode = 500;
+                      res.setHeader('Content-Type', 'application/json');
+                      res.end(JSON.stringify({
+                        error: 'internal_server_error',
+                        message: error.message
+                      }));
+                    });
+                  });
+                });
+              } else {
+                import('./_api/github/oauth/test-errors').then(module => {
+                  module.default(vercelReq, vercelRes).catch((error: Error) => {
+                    console.error('Test endpoint error:', error);
+                    res.statusCode = 500;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({
+                      error: 'internal_server_error',
+                      message: error.message
+                    }));
+                  });
+                });
+              }
               return true; // Prevent further proxy handling
             }
           });

@@ -61,36 +61,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
+        console.log('Checking auth status...');
         const token = await githubAuth.getAccessToken();
-        if (!token) {
-          if (isGitHubConnected) {
-            setIsGitHubConnected(false);
-            setUser(null);
-            toast.error('Session expired. Please login again.');
-          }
-          return;
-        }
+        console.log('Current auth data in localStorage:', {
+          token: token ? 'present' : null,
+          expiration: localStorage.getItem('github_token_expiration'),
+          scopes: localStorage.getItem('github_token_scopes'),
+          state: localStorage.getItem('github_oauth_state')
+        });
 
-        // Attempt to get current user, which will trigger token refresh if needed
-        await githubAuth.getCurrentUser();
+        if (token) {
+          setIsGitHubConnected(true);
+          if (!user) {
+            console.log('Token found but no user data, loading user...');
+            await loadUserData();
+          }
+        } else {
+          console.log('No valid token found, setting disconnected state');
+          setIsGitHubConnected(false);
+          setUser(null);
+        }
       } catch (error) {
-        console.error('Auth status check failed:', error);
+        console.error('Auth check failed:', error);
         setIsGitHubConnected(false);
         setUser(null);
-        toast.error('Session expired. Please login again.');
       }
     };
 
-    // Check auth status every minute
+    // Initial check
+    checkAuthStatus();
+
+    // Set up periodic checks
     const interval = setInterval(checkAuthStatus, 60000);
     return () => clearInterval(interval);
-  }, [isGitHubConnected]);
+  }, [githubAuth, user]);
 
   // Initial auth check
   useEffect(() => {
     const initAuth = async () => {
       try {
+        setLoading(true);
+        console.log('Starting initial auth check...');
+
+        // Wait for encryption to be ready
+        await githubAuth.waitForEncryption();
+        console.log('Encryption ready for initial check');
+
         const token = await githubAuth.getAccessToken();
+        console.log('Initial token check:', token ? 'found' : 'not found');
+
         if (token) {
           setIsGitHubConnected(true);
           await loadUserData();
@@ -113,7 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const sdkMetrics = await sdk.getUserMetrics(githubUser.login);
 
       updateUser({
-        id: githubUser.id,
+        id: githubUser.id.toString(), // Convert number to string
         name: githubUser.name,
         avatar: githubUser.avatar_url,
         githubUsername: githubUser.login,
@@ -169,9 +188,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(errorDescription);
       }
 
+      // Handle the callback and store token
       await githubAuth.handleCallback(code, state);
       setIsGitHubConnected(true);
+
+      // Load user data after successful authentication
       await loadUserData();
+
+      // Clear OAuth state after successful authentication
+      localStorage.removeItem('github_oauth_state');
     } catch (error) {
       console.error('GitHub callback error:', error);
       setError(error instanceof Error ? error.message : 'Authentication failed');
@@ -229,10 +254,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useAuth() {
+// Export the hook as a named export for better compatibility with Fast Refresh
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
+};

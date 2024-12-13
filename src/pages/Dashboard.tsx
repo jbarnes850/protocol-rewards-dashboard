@@ -35,7 +35,7 @@ export function Dashboard() {
           <div className="space-y-6 pb-8 border-b border-white/10">
             <NetworkStats />
             {!user && <GetStartedCard />}
-            {import.meta.env.DEV && <TestErrorScenarios />}
+            <TestErrorScenarios />
           </div>
 
           {/* Main Content - Only show when user is authenticated */}

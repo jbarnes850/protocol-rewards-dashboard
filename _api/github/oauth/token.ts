@@ -40,17 +40,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // Handle test scenarios
-    if (code.startsWith('test_success_code_')) {
-      return res.status(200).json({
-        access_token: 'test_access_token_' + Date.now(),
-        token_type: 'bearer',
-        scope: 'read:user,user:email'
+    if (code.startsWith('test_')) {
+      const scenario = code.substring(5);
+      if (scenario === 'success') {
+        return res.status(200).json({
+          access_token: `test_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+          token_type: 'bearer',
+          scope: 'read:user,user:email,repo',
+          expires_in: 3600
+        });
+      }
+      // Let other test scenarios be handled by test-errors endpoint
+      return res.status(400).json({
+        error: 'invalid_request',
+        message: 'Invalid test scenario'
       });
     }
-
-    const host = req.headers['host'];
-    const protocol = req.headers['x-forwarded-proto'] || 'https';
-    const appUrl = `${protocol}://${host}`;
 
     // For real GitHub OAuth requests
     const response = await fetch('https://github.com/login/oauth/access_token', {
@@ -63,33 +68,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         client_id: requiredEnvVars.VITE_GITHUB_CLIENT_ID,
         client_secret: requiredEnvVars.GITHUB_CLIENT_SECRET,
         code,
-        redirect_uri: `${appUrl}/auth/callback`,
-        state,
+        state
       }),
     });
 
-    const data = await response.json() as GitHubOAuthError | { access_token: string };
+    const data = await response.json() as GitHubOAuthError | {
+      access_token: string;
+      scope?: string;
+      token_type?: string;
+    };
 
     // Check for GitHub OAuth specific errors
     if ('error' in data) {
       console.error('GitHub OAuth error:', data);
       return res.status(400).json({
         error: data.error,
-        message: data.error_description || 'GitHub OAuth authentication failed',
-        error_uri: data.error_uri
+        message: data.error_description || 'GitHub OAuth authentication failed'
       });
     }
 
-    if (!response.ok) {
-      console.error('GitHub API error:', data);
-      return res.status(response.status).json({
-        error: 'github_api_error',
-        message: 'Failed to exchange code for token',
-        details: data
-      });
-    }
+    // Parse scopes from response
+    const scopes = data.scope ? data.scope.split(',') : ['read:user', 'user:email', 'repo'];
 
-    return res.status(200).json(data);
+    return res.status(200).json({
+      access_token: data.access_token,
+      token_type: data.token_type || 'bearer',
+      scope: scopes.join(','),
+      expires_in: 3600
+    });
   } catch (error) {
     console.error('Token exchange error:', error);
     return res.status(500).json({

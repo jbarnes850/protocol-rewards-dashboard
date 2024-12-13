@@ -5,6 +5,7 @@ import { Button } from './ui/Button';
 /// <reference types="vite/client" />
 
 const ERROR_SCENARIOS = [
+  'success',
   'expired_state',
   'invalid_token',
   'network_error',
@@ -33,7 +34,7 @@ export function TestErrorScenarios() {
     }
   };
 
-  if (import.meta.env.PROD) {
+  if (!import.meta.env.DEV || !import.meta.env.VITE_TEST_MODE) {
     return null;
   }
 
