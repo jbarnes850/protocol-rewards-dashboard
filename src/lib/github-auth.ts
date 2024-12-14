@@ -72,7 +72,22 @@ export class GitHubAuth {
     });
   }
 
-  // Public method to check encryption readiness
+  public static getInstance(): GitHubAuth {
+    if (!GitHubAuth.instance) {
+      GitHubAuth.instance = new GitHubAuth();
+    }
+    return GitHubAuth.instance;
+  }
+
+  public async initialize(): Promise<void> {
+    await this.waitForEncryption();
+    validateEnvironmentVariables();
+  }
+
+  public login(): void {
+    window.location.href = this.getLoginUrl();
+  }
+
   public async waitForEncryption(): Promise<void> {
     await this.encryptionReady;
   }
@@ -90,7 +105,6 @@ export class GitHubAuth {
 
   private async initializeEncryptionKey(): Promise<void> {
     try {
-      // Generate a secure key for token encryption
       const keyMaterial = await crypto.subtle.generateKey(
         { name: 'AES-GCM', length: 256 },
         true,
@@ -131,18 +145,15 @@ export class GitHubAuth {
     }
 
     try {
-      // Decode base64 string to binary data
       const binaryStr = atob(encryptedToken);
       const bytes = new Uint8Array(binaryStr.length);
       for (let i = 0; i < binaryStr.length; i++) {
         bytes[i] = binaryStr.charCodeAt(i);
       }
 
-      // Extract IV and encrypted data
       const iv = bytes.slice(0, 12);
       const data = bytes.slice(12);
 
-      // Decrypt the data
       const decryptedData = await crypto.subtle.decrypt(
         { name: 'AES-GCM', iv },
         this.encryptionKey,
@@ -152,26 +163,17 @@ export class GitHubAuth {
       return new TextDecoder().decode(decryptedData);
     } catch (error) {
       console.error('Decryption error:', error);
-      // Clear invalid token data
       this.logout();
       throw new Error('Failed to decrypt token');
     }
   }
 
-  static getInstance(): GitHubAuth {
-    if (!GitHubAuth.instance) {
-      GitHubAuth.instance = new GitHubAuth();
-    }
-    return GitHubAuth.instance;
-  }
-
-  getLoginUrl(): string {
+  private getLoginUrl(): string {
     const stateObj = {
       state: crypto.randomUUID(),
       timestamp: Date.now()
     };
 
-    // Store state for validation
     localStorage.setItem('github_oauth_state', JSON.stringify(stateObj));
 
     const params = new URLSearchParams({
@@ -181,9 +183,7 @@ export class GitHubAuth {
       state: stateObj.state
     });
 
-    const baseUrl = import.meta.env.DEV
-      ? `${window.location.origin}/_api/github/oauth/test-errors`
-      : 'https://github.com/login/oauth/authorize';
+    const baseUrl = 'https://github.com/login/oauth/authorize';
 
     const url = `${baseUrl}?${params.toString()}`;
     console.log('Generated OAuth URL:', url);
@@ -499,64 +499,4 @@ export class GitHubAuth {
     }
   }
 
-  async handleTestScenario(scenario: string): Promise<void> {
-    console.log('Testing scenario:', scenario);
-    const state = crypto.randomUUID();
-    sessionStorage.setItem('oauth_state', state);
-
-    try {
-      // First step: Get the authorization code through redirect
-      const redirect_uri = `${window.location.origin}/auth/callback`;
-      const params = new URLSearchParams({
-        scenario,
-        redirect_uri,
-        state,
-      });
-
-      const response = await fetch(
-        `/api/github/oauth/test-errors?${params.toString()}`,
-        { redirect: 'follow' }
-      );
-
-      // Handle redirect response
-      if (response.redirected) {
-        const redirectUrl = new URL(response.url);
-        const code = redirectUrl.searchParams.get('code');
-        const returnedState = redirectUrl.searchParams.get('state');
-
-        if (!code || !returnedState) {
-          throw new Error('Missing code or state in redirect');
-        }
-
-        if (returnedState !== state) {
-          throw new Error('State mismatch');
-        }
-
-        // Second step: Exchange code for token
-        const tokenResponse = await fetch('/api/github/oauth/test-errors', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, state: returnedState, scenario })
-        });
-
-        if (!tokenResponse.ok) {
-          const error = await tokenResponse.json();
-          throw new Error(error.message || 'Token exchange failed');
-        }
-
-        const data = await tokenResponse.json();
-        if (data.access_token) {
-          await this.setAccessToken(data.access_token);
-          this.isAuthenticated = true;
-          this.notifyAuthStateChange();
-        }
-      } else {
-        const error = await response.json();
-        throw new Error(error.message || 'Test scenario failed');
-      }
-    } catch (error) {
-      console.error('Test scenario error:', error);
-      throw error;
-    }
-  }
 }

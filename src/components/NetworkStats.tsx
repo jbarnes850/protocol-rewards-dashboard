@@ -1,11 +1,8 @@
-import { useEffect, useState } from 'react';
+import React from 'react';
 import { Activity, Users, GitPullRequest, Star, Coins } from 'lucide-react';
 import { Tooltip } from './ui/Tooltip';
 import { useAuth } from '../providers/AuthProvider';
-import { GitHubAuth } from '../lib/github-auth';
-
-// API Constants
-const GITHUB_API = 'https://api.github.com';
+import { useSDK } from '../providers/SDKProvider';
 
 interface NetworkMetrics {
   totalRewardsDistributed: number;
@@ -15,157 +12,50 @@ interface NetworkMetrics {
   totalContributions: number;
   isPrivateRepo: boolean;
   trackedRepo: string | null;
-  repoMetrics?: {
-    stars: number;
-    openIssues: number;
-    forks: number;
-  };
 }
-
-const fetchGitHubMetrics = async (auth: GitHubAuth) => {
-  try {
-    console.log('Fetching GitHub metrics...');
-    const token = auth.getAccessToken();
-    if (!token) {
-      throw new Error('Not authenticated');
-    }
-
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github.v3+json'
-    };
-
-    // Get tracked repository first
-    const trackedRepo = auth.getTrackedRepository();
-    let repoMetrics = null;
-    const repoFullName = trackedRepo?.full_name || null;
-
-    if (repoFullName) {
-      // Fetch private repo metrics if we have access
-      if (auth.hasScope('repo')) {
-        const repoResponse = await fetch(`${GITHUB_API}/repos/${repoFullName}`, { headers });
-        if (repoResponse.ok) {
-          const repo = await repoResponse.json();
-          repoMetrics = {
-            stars: repo.stargazers_count,
-            openIssues: repo.open_issues_count,
-            forks: repo.forks_count
-          };
-        }
-      } else {
-        console.log('Private repo access not granted');
-      }
-    }
-
-    // Get active contributors
-    const contributorsResponse = await fetch(`${GITHUB_API}/orgs/near/members?per_page=100`, { headers });
-    if (!contributorsResponse.ok) {
-      if (contributorsResponse.status === 401) {
-        throw new Error('Authentication required');
-      }
-      throw new Error(`GitHub contributors API error: ${contributorsResponse.status}`);
-    }
-    const contributors = await contributorsResponse.json();
-
-    // Get open PRs
-    const prsQuery = repoFullName
-      ? `repo:${repoFullName}+type:pr+state:open`
-      : `org:near+type:pr+state:open`;
-    const prsResponse = await fetch(
-      `${GITHUB_API}/search/issues?q=${prsQuery}`,
-      { headers }
-    );
-    if (!prsResponse.ok) {
-      throw new Error(`GitHub PRs API error: ${prsResponse.status}`);
-    }
-    const prs = await prsResponse.json();
-
-    return {
-      activeContributors: contributors.length,
-      totalStars: repoMetrics ? repoMetrics.stars : 0,
-      openPRs: prs.total_count,
-      totalContributions: repoMetrics
-        ? repoMetrics.openIssues + repoMetrics.forks
-        : 0,
-      isPrivateRepo: !!repoMetrics,
-      trackedRepo: repoFullName,
-      repoMetrics: repoMetrics ? {
-        stars: repoMetrics.stars,
-        openIssues: repoMetrics.openIssues,
-        forks: repoMetrics.forks
-      } : undefined
-    };
-  } catch (error) {
-    console.error('GitHub API Error:', error);
-    throw error;
-  }
-};
 
 export function NetworkStats() {
   const { user } = useAuth();
-  const auth = GitHubAuth.getInstance();
-  const [metrics, setMetrics] = useState<NetworkMetrics>({
-    totalRewardsDistributed: 50000, // Mock data
+  const { metrics: sdkMetrics, rewards, loading, error: sdkError } = useSDK();
+  const [metrics, setMetrics] = React.useState<NetworkMetrics>({
+    totalRewardsDistributed: 0,
     activeContributors: 0,
     totalStars: 0,
     openPRs: 0,
     totalContributions: 0,
     isPrivateRepo: false,
-    trackedRepo: null,
-    repoMetrics: undefined
+    trackedRepo: null
   });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchMetrics = async () => {
-      if (!user) {
-        setError('Please connect your GitHub account to view metrics.');
-        setLoading(false);
-        return;
-      }
+  React.useEffect(() => {
+    if (sdkMetrics && rewards) {
+      const activeContributors = Math.ceil(sdkMetrics.commits.count * sdkMetrics.commits.authorDiversity);
+      const totalContributions = sdkMetrics.commits.count + sdkMetrics.pullRequests.count + sdkMetrics.issues.closed;
 
-      try {
-        setLoading(true);
-        setError(null);
+      setMetrics({
+        totalRewardsDistributed: rewards.totalAllocated || 0,
+        activeContributors,
+        totalStars: Math.floor(sdkMetrics.commits.score + sdkMetrics.pullRequests.score),
+        openPRs: sdkMetrics.pullRequests.count - sdkMetrics.pullRequests.merged,
+        totalContributions,
+        isPrivateRepo: true,
+        trackedRepo: rewards.tier.name
+      });
+    }
+  }, [sdkMetrics, rewards]);
 
-        // Fetch GitHub metrics
-        const githubData = await fetchGitHubMetrics(auth);
-        console.log('GitHub data:', githubData);
-
-        setMetrics({
-          totalRewardsDistributed: 50000, // Mock data
-          activeContributors: githubData.activeContributors || 0,
-          totalStars: githubData.totalStars || 0,
-          openPRs: githubData.openPRs || 0,
-          totalContributions: githubData.totalContributions || 0,
-          isPrivateRepo: githubData.isPrivateRepo,
-          trackedRepo: githubData.trackedRepo,
-          repoMetrics: githubData.repoMetrics
-        });
-      } catch (error) {
-        console.error('Error fetching metrics:', error);
-        const isAuthError = error instanceof Error &&
-          (error.message.includes('401') || error.message.includes('Authentication required'));
-        setError(
-          isAuthError
-            ? 'Please connect your GitHub account to view metrics.'
-            : 'Failed to fetch metrics. Please try again later.'
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchMetrics();
-    const interval = setInterval(fetchMetrics, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [user, auth]);
-
-  if (error) {
+  if (!user) {
     return (
       <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6">
-        <p className="text-red-400">{error}</p>
+        <p className="text-red-400">Please connect your GitHub account to view metrics.</p>
+      </div>
+    );
+  }
+
+  if (sdkError) {
+    return (
+      <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6">
+        <p className="text-red-400">{sdkError}</p>
       </div>
     );
   }

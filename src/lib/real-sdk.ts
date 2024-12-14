@@ -43,6 +43,14 @@ export class NEARProtocolRewardsSDK {
     this.githubToken = token || '';
   }
 
+  setProjectId(projectId: string) {
+    this.projectId = projectId;
+  }
+
+  setToken(token: string) {
+    this.githubToken = token;
+  }
+
   private async fetchGitHubData(query: string): Promise<{ data: GitHubGraphQLResponse }> {
     const response = await fetch('https://api.github.com/graphql', {
       method: 'POST',

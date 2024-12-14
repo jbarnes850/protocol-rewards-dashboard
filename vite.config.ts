@@ -14,6 +14,10 @@ const config = {
     port: process.env.PORT as unknown as number || 5173,
     host: true,
     strictPort: true,
+    hmr: {
+      clientPort: 443,
+      host: 'github-oauth-app-tunnel-iqfqqfvf.devinapps.com'
+    },
     proxy: {
       '/_api/github/oauth/test-errors': {
         target: 'http://localhost:5173',
@@ -25,7 +29,6 @@ const config = {
           });
           proxy.on('proxyReq', (_proxyReq: any, req: IncomingMessage, res: ServerResponse) => {
             console.log('Proxying:', req.method, req.url);
-            // Handle the test endpoint directly instead of proxying
             if (req.url?.startsWith('/_api/github/oauth/test-errors')) {
               const vercelReq = {
                 ...req,
@@ -52,7 +55,6 @@ const config = {
                 }
               } as unknown as VercelResponse;
 
-              // Handle POST request body
               if (req.method === 'POST') {
                 let body = '';
                 req.on('data', chunk => {
@@ -90,26 +92,21 @@ const config = {
                   });
                 });
               }
-              return true; // Prevent further proxy handling
+              return true;
             }
           });
         }
       } as ExtendedProxyOptions,
-      '/api': {
+      '/_api': {
         target: 'http://localhost:5173',
         changeOrigin: true,
-        rewrite: (path: string) => path.replace(/^\/api/, '/_api'),
-        secure: false
+        secure: false,
       }
     }
   },
   plugins: [react(), vercel()],
   vercel: {
     rewrites: [
-      {
-        source: "/api/(.*)",
-        destination: "/_api/$1"
-      },
       {
         source: "/(.*)",
         destination: "/index.html"
@@ -120,6 +117,8 @@ const config = {
     'process.env.VITE_GITHUB_CLIENT_ID': JSON.stringify(process.env.VITE_GITHUB_CLIENT_ID),
     'process.env.VITE_GITHUB_API_URL': JSON.stringify(process.env.VITE_GITHUB_API_URL),
     'process.env.VITE_GITHUB_ORG': JSON.stringify(process.env.VITE_GITHUB_ORG),
+    'process.env.VITE_GITHUB_CALLBACK_URL': JSON.stringify(process.env.VITE_GITHUB_CALLBACK_URL),
+    'process.env.VITE_GITHUB_SCOPES': JSON.stringify(process.env.VITE_GITHUB_SCOPES),
   },
 };
 

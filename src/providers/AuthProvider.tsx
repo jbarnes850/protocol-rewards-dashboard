@@ -1,202 +1,171 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { GitHubAuth } from '../lib/github-auth';
-import { NEARProtocolRewardsSDK } from '../lib/mock-sdk';
-import { toast } from 'sonner';
+import { NEARProtocolRewardsSDK } from '../lib/real-sdk';
+import { User, ProcessedMetrics, RewardCalculation } from '../lib/types';
 
-interface User {
-  id: string;
-  name: string;
-  avatar: string;
-  githubUsername?: string;
-  rewardTier: {
-    name: string;
-    color: string;
-    progress: number;
-    nextMilestone: number;
-  };
-  metrics?: {
-    github: {
-      commits: number;
-      prs: number;
-      reviews: number;
-    };
-    sdk: {
-      transactions: number;
-      contracts: number;
-      users: number;
-    };
-  };
-  trackedRepository?: {
-    name: string;
-    fullName: string;
-    url: string;
-  };
-}
-
-interface AuthContextType {
+export type AuthContextType = {
   user: User | null;
-  loginWithGitHub: () => void;
-  logout: () => void;
   loading: boolean;
   error: string | null;
   isGitHubConnected: boolean;
+  metrics: ProcessedMetrics | null;
+  rewards: RewardCalculation | null;
+  trackedRepository: string | null;
+  loginWithGitHub: () => void;
   handleGitHubCallback: (code: string, state: string) => Promise<void>;
-  setTrackedRepository: (repoFullName: string) => Promise<void>;
-}
+  logout: () => void;
+  setTrackedRepository: (repo: string) => void;
+};
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | null>(null);
 
-const githubAuth = GitHubAuth.getInstance();
 const sdk = new NEARProtocolRewardsSDK({
   projectId: 'dashboard',
+  token: ''
 });
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+const githubAuth = GitHubAuth.getInstance();
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Initialize as true
   const [error, setError] = useState<string | null>(null);
   const [isGitHubConnected, setIsGitHubConnected] = useState(false);
+  const [metrics, setMetrics] = useState<ProcessedMetrics | null>(null);
+  const [rewards, setRewards] = useState<RewardCalculation | null>(null);
+  const [trackedRepository, setTrackedRepository] = useState<string | null>(null);
+  const [authCheckInProgress, setAuthCheckInProgress] = useState(false);
 
-  // Check authentication status periodically
-  useEffect(() => {
-    const checkAuthStatus = async () => {
-      try {
-        console.log('Checking auth status...');
-        const token = await githubAuth.getAccessToken();
-        console.log('Current auth data in localStorage:', {
-          token: token ? 'present' : null,
-          expiration: localStorage.getItem('github_token_expiration'),
-          scopes: localStorage.getItem('github_token_scopes'),
-          state: localStorage.getItem('github_oauth_state')
-        });
-
-        if (token) {
-          setIsGitHubConnected(true);
-          if (!user) {
-            console.log('Token found but no user data, loading user...');
-            await loadUserData();
-          }
-        } else {
-          console.log('No valid token found, setting disconnected state');
-          setIsGitHubConnected(false);
-          setUser(null);
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        setIsGitHubConnected(false);
-        setUser(null);
-      }
-    };
-
-    // Initial check
-    checkAuthStatus();
-
-    // Set up periodic checks
-    const interval = setInterval(checkAuthStatus, 60000);
-    return () => clearInterval(interval);
-  }, [githubAuth, user]);
-
-  // Initial auth check
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        setLoading(true);
-        console.log('Starting initial auth check...');
-
-        // Wait for encryption to be ready
-        await githubAuth.waitForEncryption();
-        console.log('Encryption ready for initial check');
-
-        const token = await githubAuth.getAccessToken();
-        console.log('Initial token check:', token ? 'found' : 'not found');
-
-        if (token) {
-          setIsGitHubConnected(true);
-          await loadUserData();
-        }
-      } catch (error) {
-        console.error('Failed to initialize authentication:', error);
-        toast.error('Failed to load user data');
-        setIsGitHubConnected(false);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initAuth();
-  }, []);
-
-  const loadUserData = async () => {
+  const loadUserData = useCallback(async () => {
     try {
-      const githubUser = await githubAuth.getCurrentUser();
-      const sdkMetrics = await sdk.getUserMetrics(githubUser.login);
+      const token = await githubAuth.getAccessToken();
+      if (!token) {
+        throw new Error('No access token available');
+      }
 
-      updateUser({
-        id: githubUser.id.toString(), // Convert number to string
+      const githubUser = await githubAuth.getCurrentUser();
+      const user: User = {
+        id: githubUser.id.toString(),
         name: githubUser.name,
         avatar: githubUser.avatar_url,
-        githubUsername: githubUser.login,
-        metrics: {
-          github: {
-            commits: Math.floor(Math.random() * 100), // Mock data
-            prs: Math.floor(Math.random() * 20),      // Mock data
-            reviews: Math.floor(Math.random() * 30),   // Mock data
-          },
-          sdk: sdkMetrics,
-        },
-      });
+        githubUsername: githubUser.login
+      };
+      setUser(user);
+
+      if (trackedRepository) {
+        sdk.setToken(token);
+        const [githubMetrics, nearMetricsResponse] = await Promise.all([
+          sdk.getMetrics(trackedRepository),
+          Promise.resolve({
+            transactions: { count: 0, volume: 0, quality: 0, score: 0 },
+            contracts: { interactions: 0, uniqueCallers: 0, usagePatterns: 0, score: 0 },
+            users: { total: 0, retention: 0, growthRate: 0, score: 0 }
+          })
+        ]);
+
+        const processedMetrics: ProcessedMetrics = {
+          github: githubMetrics,
+          near: nearMetricsResponse
+        };
+
+        const rewards = await sdk.calculateRewards(githubMetrics, nearMetricsResponse);
+
+        setMetrics(processedMetrics);
+        setRewards(rewards);
+      }
     } catch (error) {
       console.error('Failed to load user data:', error);
-      toast.error('Failed to load complete metrics');
-      // If the error is auth-related, reset the connection
-      if (error instanceof Error && error.message.includes('Not authenticated')) {
-        setIsGitHubConnected(false);
-        setUser(null);
-      }
+      setError(error instanceof Error ? error.message : 'Failed to load user data');
+      setIsGitHubConnected(false);
     }
-  };
+  }, [trackedRepository]);
 
-  const updateUser = (data: Partial<User>) => {
-    setUser((prev: User | null) => {
-      if (!prev && !data.id) return null;
-      return {
-        ...prev,
-        ...data,
-        rewardTier: data.rewardTier || prev?.rewardTier || {
-          name: 'Getting Started',
-          color: 'bg-gradient-to-r from-gray-500 to-slate-500',
-          progress: 0,
-          nextMilestone: 250,
-        },
-      } as User;
-    });
-  };
+  const checkAuthStatus = useCallback(async () => {
+    if (authCheckInProgress) {
+      console.log('Auth check already in progress, skipping...');
+      return;
+    }
 
-  const loginWithGitHub = () => {
-    window.location.href = githubAuth.getLoginUrl();
-  };
+    try {
+      setAuthCheckInProgress(true);
+      setLoading(true);
+      console.log('Starting auth status check...');
+      await githubAuth.waitForEncryption();
+      console.log('Encryption ready, checking for token...');
+      const token = await githubAuth.getAccessToken();
+      console.log('Token status:', token ? 'found' : 'not found');
 
-  const handleGitHubCallback = async (code: string, state: string) => {
+      if (token) {
+        console.log('Token found, validating with getCurrentUser...');
+        try {
+          const githubUser = await githubAuth.getCurrentUser();
+          const user: User = {
+            id: githubUser.id.toString(),
+            name: githubUser.name,
+            avatar: githubUser.avatar_url,
+            githubUsername: githubUser.login
+          };
+          setUser(user);
+          setIsGitHubConnected(true);
+          sdk.setToken(token);
+          await loadUserData();
+        } catch (error) {
+          console.error('Token validation failed:', error);
+          setIsGitHubConnected(false);
+        }
+      } else {
+        console.log('No token found, ready for login');
+        setIsGitHubConnected(false);
+      }
+    } catch (error) {
+      console.error('Auth status check failed:', error);
+      setIsGitHubConnected(false);
+      setError(error instanceof Error ? error.message : 'Failed to check authentication status');
+    } finally {
+      setAuthCheckInProgress(false);
+      setLoading(false);
+    }
+  }, [loadUserData]);
+
+  useEffect(() => {
+    const initializeAuth = async () => {
+      setLoading(true);
+      try {
+        await githubAuth.initialize();
+        await checkAuthStatus();
+      } catch (error) {
+        console.error('Failed to initialize auth:', error);
+        setError(error instanceof Error ? error.message : 'Failed to initialize authentication');
+      }
+    };
+
+    initializeAuth();
+  }, [checkAuthStatus]);
+
+  useEffect(() => {
+    if (isGitHubConnected && trackedRepository) {
+      loadUserData();
+    }
+  }, [isGitHubConnected, trackedRepository, loadUserData]);
+
+  const loginWithGitHub = useCallback(() => {
+    githubAuth.login();
+  }, []);
+
+  const handleGitHubCallback = useCallback(async (code: string, state: string) => {
     try {
       setLoading(true);
       setError(null);
 
-      // Check for OAuth error parameters in URL
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.has('error')) {
         const errorDescription = urlParams.get('error_description') || 'Authentication failed';
         throw new Error(errorDescription);
       }
 
-      // Handle the callback and store token
       await githubAuth.handleCallback(code, state);
       setIsGitHubConnected(true);
-
-      // Load user data after successful authentication
       await loadUserData();
-
-      // Clear OAuth state after successful authentication
-      localStorage.removeItem('github_oauth_state');
     } catch (error) {
       console.error('GitHub callback error:', error);
       setError(error instanceof Error ? error.message : 'Authentication failed');
@@ -205,59 +174,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadUserData]);
 
-  const logout = () => {
+  const logout = useCallback(async () => {
     try {
-      githubAuth.logout();
+      setLoading(true);
+      await githubAuth.logout();
       setUser(null);
+      setMetrics(null);
+      setRewards(null);
       setIsGitHubConnected(false);
-      toast.success('Successfully logged out');
+      setTrackedRepository(null);
     } catch (error) {
-      console.error('Failed to logout:', error);
-      toast.error('Failed to logout');
+      console.error('Logout error:', error);
+      setError(error instanceof Error ? error.message : 'Failed to logout');
+    } finally {
+      setLoading(false);
     }
+  }, []);
+
+  const handleSetTrackedRepository = useCallback((repo: string) => {
+    setTrackedRepository(repo);
+  }, []);
+
+  const value = {
+    user,
+    loading,
+    error,
+    isGitHubConnected,
+    metrics,
+    rewards,
+    trackedRepository,
+    loginWithGitHub,
+    handleGitHubCallback,
+    logout,
+    setTrackedRepository: handleSetTrackedRepository,
   };
 
-  const setTrackedRepository = async (repoFullName: string) => {
-    try {
-      const repo = await githubAuth.setTrackedRepository(repoFullName);
-      updateUser({
-        trackedRepository: {
-          name: repo.name,
-          fullName: repo.full_name,
-          url: repo.html_url
-        }
-      });
-      toast.success(`Now tracking repository: ${repo.full_name}`);
-    } catch (error) {
-      console.error('Failed to set tracked repository:', error);
-      toast.error('Failed to set tracked repository');
-    }
-  };
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loginWithGitHub,
-        handleGitHubCallback,
-        logout,
-        loading,
-        error,
-        isGitHubConnected,
-        setTrackedRepository
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
-// Export the hook as a named export for better compatibility with Fast Refresh
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
