@@ -11,7 +11,6 @@ import { PriorityActions } from '../components/PriorityActions';
 import { Footer } from '../components/Footer';
 import { NetworkStats } from '../components/NetworkStats';
 import { Spinner } from '../components/ui/Spinner';
-import { TestErrorScenarios } from '../components/TestErrorScenarios';
 import { toast } from 'sonner';
 
 export function Dashboard() {
@@ -50,7 +49,6 @@ export function Dashboard() {
           <div className="space-y-6 pb-8 border-b border-white/10">
             <NetworkStats />
             {!isSignedIn && <GetStartedCard />}
-            <TestErrorScenarios />
           </div>
 
           {/* Main Content - Only show when user is authenticated */}
