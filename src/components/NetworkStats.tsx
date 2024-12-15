@@ -1,7 +1,7 @@
 import React from 'react';
 import { Activity, Users, GitPullRequest, Star, Coins } from 'lucide-react';
 import { Tooltip } from './ui/Tooltip';
-import { useAuth } from '../providers/AuthProvider';
+import { useUser, useAuth } from '@clerk/clerk-react';
 import { useSDK } from '../providers/SDKProvider';
 
 interface NetworkMetrics {
@@ -15,7 +15,8 @@ interface NetworkMetrics {
 }
 
 export function NetworkStats() {
-  const { user } = useAuth();
+  const { user } = useUser();
+  const { isLoaded } = useAuth();
   const { metrics: sdkMetrics, rewards, loading, error: sdkError } = useSDK();
   const [metrics, setMetrics] = React.useState<NetworkMetrics>({
     totalRewardsDistributed: 0,
@@ -44,7 +45,7 @@ export function NetworkStats() {
     }
   }, [sdkMetrics, rewards]);
 
-  if (!user) {
+  if (!isLoaded || !user) {
     return (
       <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6">
         <p className="text-red-400">Please connect your GitHub account to view metrics.</p>
