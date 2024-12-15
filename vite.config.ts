@@ -17,14 +17,14 @@ const config = {
     cors: {
       origin: [
         'http://localhost:5173',
-        'https://github-oauth-dashboard-tunnel-gvta69w1.devinapps.com'
+        'https://github-oauth-app-tunnel-b7vfgnlh.devinapps.com'
       ],
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       credentials: true
     },
     hmr: {
       clientPort: 443,
-      host: 'github-oauth-dashboard-tunnel-gvta69w1.devinapps.com'
+      host: 'github-oauth-app-tunnel-b7vfgnlh.devinapps.com'
     },
     proxy: {
       '/_api/github/oauth/test-errors': {
