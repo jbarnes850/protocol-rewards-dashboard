@@ -12,19 +12,16 @@ interface ExtendedProxyOptions extends ProxyOptions {
 const config = {
   server: {
     port: 5173,
-    host: '0.0.0.0',
+    host: true,
     strictPort: true,
     cors: {
-      origin: [
-        'http://localhost:5173',
-        'https://github-oauth-dashboard-tunnel-wdbhwipp.devinapps.com'
-      ],
+      origin: ['http://localhost:5173'],
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       credentials: true
     },
     hmr: {
-      clientPort: 443,
-      host: 'github-oauth-dashboard-tunnel-wdbhwipp.devinapps.com'
+      clientPort: 5173,
+      host: 'localhost'
     },
     proxy: {
       '/_api/github/oauth/test-errors': {
@@ -127,12 +124,12 @@ const config = {
     ]
   },
   define: {
-    'process.env.VITE_GITHUB_CLIENT_ID': JSON.stringify(process.env.VITE_GITHUB_CLIENT_ID),
+    'process.env.VITE_CLERK_PUBLISHABLE_KEY': JSON.stringify(process.env.VITE_CLERK_PUBLISHABLE_KEY),
     'process.env.VITE_GITHUB_API_URL': JSON.stringify(process.env.VITE_GITHUB_API_URL),
     'process.env.VITE_GITHUB_ORG': JSON.stringify(process.env.VITE_GITHUB_ORG),
-    'process.env.VITE_GITHUB_CALLBACK_URL': JSON.stringify(process.env.VITE_GITHUB_CALLBACK_URL),
     'process.env.VITE_GITHUB_SCOPES': JSON.stringify(process.env.VITE_GITHUB_SCOPES),
-    'process.env.VITE_CLERK_PUBLISHABLE_KEY': JSON.stringify(process.env.VITE_CLERK_PUBLISHABLE_KEY),
+    'process.env.VITE_TEST_MODE': JSON.stringify(process.env.VITE_TEST_MODE),
+    'process.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL),
   },
 };
 

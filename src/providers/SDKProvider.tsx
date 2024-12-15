@@ -33,7 +33,7 @@ export function SDKProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const trackedRepo = user.unsafeMetadata.trackedRepository as string;
+    const trackedRepo = user.unsafeMetadata?.trackedRepository as string;
     if (!trackedRepo) {
       setError('Please select a repository to track.');
       setMetrics(null);
@@ -75,7 +75,7 @@ export function SDKProvider({ children }: { children: React.ReactNode }) {
       const interval = setInterval(refreshData, 5 * 60 * 1000); // Refresh every 5 minutes
       return () => clearInterval(interval);
     }
-  }, [isLoaded, isTokenLoaded, user?.unsafeMetadata.trackedRepository]);
+  }, [isLoaded, isTokenLoaded, user?.unsafeMetadata?.trackedRepository]);
 
   const value: SDKContextValue = {
     sdkManager,

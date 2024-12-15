@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, Loader2, Github, Shield, ExternalLink } from 'lucide-react';
 import { useUser } from '@clerk/clerk-react';
 import { useGitHubToken } from '../lib/clerk-github';
@@ -22,48 +22,107 @@ export function RepoSelector() {
   const [selectedRepo, setSelectedRepo] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchRepos = async () => {
-      if (!userLoaded || !tokenLoaded) return;
+  // Fetch repositories only if no tracked repository
+  const fetchRepos = useCallback(async () => {
+    if (!userLoaded || !tokenLoaded || user?.unsafeMetadata?.trackedRepository) return;
 
-      try {
-        setLoading(true);
-        setError(null);
+    setLoading(true);
+    setError(null);
 
-        const token = await getToken();
-        if (!token) {
-          throw new Error('GitHub token not available');
-        }
+    try {
+      // Get GitHub token - don't wrap errors, let them propagate as-is
+      const token = await getToken().catch(error => {
+        setLoading(false); // Clear loading before setting error
+        throw error; // Re-throw to be caught by outer catch
+      });
 
-        const response = await fetch('https://api.github.com/user/repos?sort=updated&visibility=all', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/vnd.github.v3+json'
-          }
-        });
-
-        if (response.status === 403 && response.headers.get('X-RateLimit-Remaining') === '0') {
-          const resetTime = response.headers.get('X-RateLimit-Reset');
-          throw new Error(`Rate limit exceeded. Resets at ${new Date(Number(resetTime) * 1000)}`);
-        }
-
-        if (!response.ok) {
-          throw new Error(`GitHub API error: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        setRepositories(data);
-        setError(null);
-      } catch (error) {
-        console.error('Failed to fetch repositories:', error);
-        setError(error instanceof Error ? error.message : 'Failed to fetch repositories');
-      } finally {
-        setLoading(false);
+      if (!token) {
+        setLoading(false); // Clear loading before setting error
+        setError('Unauthorized');
+        return;
       }
-    };
 
-    fetchRepos();
-  }, [userLoaded, tokenLoaded]);
+      const response = await fetch('https://api.github.com/user/repos?sort=updated&visibility=all', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+
+      if (response.status === 403 && response.headers.get('X-RateLimit-Remaining') === '0') {
+        const resetTime = response.headers.get('X-RateLimit-Reset');
+        setLoading(false); // Clear loading before setting error
+        setError(`Rate limit exceeded. Resets at ${new Date(Number(resetTime) * 1000)}`);
+        return;
+      }
+
+      if (!response.ok) {
+        // For 401 responses, set "Unauthorized"
+        if (response.status === 401) {
+          setLoading(false); // Clear loading before setting error
+          setError('Unauthorized');
+          return;
+        }
+        // For other errors, get the message from the response
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        setLoading(false); // Clear loading before setting error
+        setError(errorData.message || response.statusText);
+        return;
+      }
+
+      const data = await response.json();
+      setRepositories(data);
+      setError(null);
+      setLoading(false); // Clear loading after success
+    } catch (error) {
+      console.error('Failed to fetch repositories:', error);
+      setLoading(false); // Clear loading before setting error
+      // Set error message directly from the error without wrapping
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }, [userLoaded, tokenLoaded, user?.unsafeMetadata?.trackedRepository, getToken]);
+
+  // Display tracked repository from user metadata
+  useEffect(() => {
+    if (!userLoaded || !user?.unsafeMetadata?.trackedRepository) return;
+
+    const trackedRepo = user.unsafeMetadata.trackedRepository;
+    if (typeof trackedRepo === 'string') {
+      // Handle legacy format
+      setRepositories([{
+        id: 0,
+        name: trackedRepo.split('/')[1] || '',
+        full_name: trackedRepo,
+        private: false,
+        html_url: `https://github.com/${trackedRepo}`,
+        updated_at: new Date().toISOString()
+      }]);
+      setLoading(false);
+      return;
+    }
+
+    if (typeof trackedRepo === 'object' && trackedRepo.name) {
+      // Handle new format
+      setRepositories([{
+        id: 0,
+        name: trackedRepo.name.split('/')[1] || '',
+        full_name: trackedRepo.name,
+        private: trackedRepo.private || false,
+        html_url: `https://github.com/${trackedRepo.name}`,
+        updated_at: new Date().toISOString()
+      }]);
+      setLoading(false);
+      return;
+    }
+  }, [userLoaded, user?.unsafeMetadata?.trackedRepository]);
+
+  // Call fetchRepos when component mounts and dependencies are ready
+  useEffect(() => {
+    if (userLoaded && tokenLoaded && !user?.unsafeMetadata?.trackedRepository) {
+      console.log('Dependencies ready, calling fetchRepos...');
+      fetchRepos();
+    }
+  }, [userLoaded, tokenLoaded, user?.unsafeMetadata?.trackedRepository, fetchRepos]);
 
   const filteredRepos = repositories.filter(repo =>
     repo.full_name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -141,32 +200,36 @@ export function RepoSelector() {
           </div>
 
           <div className="p-6">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-near-purple" />
-              </div>
-            ) : error ? (
+            {error ? (
               <div className="text-center py-8">
-                <p className="text-red-400">{error}</p>
+                <div className="text-red-500 mb-4" data-testid="error-message">
+                  {error}
+                </div>
                 <button
-                  onClick={() => window.location.reload()}
-                  className="text-near-purple hover:text-near-purple/80 text-sm mt-2"
+                  onClick={() => {
+                    setError(null);
+                    fetchRepos();
+                  }}
+                  className="px-4 py-2 bg-near-purple text-white rounded-lg
+                           hover:bg-near-purple/80 transition-colors"
+                  data-testid="retry-button"
                 >
                   Try again
                 </button>
               </div>
-            ) : (
-              <>
+            ) : loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2
+                  className="w-8 h-8 animate-spin text-near-purple"
+                  role="progressbar"
+                  aria-label="Loading repositories"
+                />
+              </div>
+            ) : filteredRepos.length > 0 ? (
+              <div>
                 <div className="text-sm text-gray-400 mb-4">
-                  {filteredRepos.length === 0 ? (
-                    searchQuery ?
-                      'No repositories found' :
-                      'No repositories available'
-                  ) : (
-                    `${filteredRepos.length} ${filteredRepos.length === 1 ? 'repository' : 'repositories'} available`
-                  )}
+                  {filteredRepos.length} {filteredRepos.length === 1 ? 'repository' : 'repositories'} available
                 </div>
-
                 <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2
                               scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
                   {filteredRepos.map(repo => (
@@ -206,23 +269,14 @@ export function RepoSelector() {
                       </div>
                     </button>
                   ))}
-
-                  {filteredRepos.length === 0 && searchQuery && (
-                    <div className="text-center py-8">
-                      <p className="text-gray-400">No repositories match your search.</p>
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        className="text-near-purple hover:text-near-purple/80 text-sm mt-2"
-                      >
-                        Clear search
-                      </button>
-                    </div>
-                  )}
                 </div>
-              </>
+              </div>
+            ) : (
+              <div className="text-center text-gray-400">
+                No repositories found
+              </div>
             )}
           </div>
-
           <div className="p-6 border-t border-white/10 bg-white/5">
             <div className="flex items-start gap-3">
               <Shield className="w-5 h-5 text-near-purple mt-1" />
@@ -250,4 +304,4 @@ export function RepoSelector() {
       </div>
     </div>
   );
-} 
+}             
