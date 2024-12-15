@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useAuth } from '../providers/AuthProvider';
+import { useUser } from '@clerk/clerk-react';
 import { RepoSelector } from '../components/RepoSelector';
 import { ProjectOverview } from '../components/ProjectOverview';
 import { PersonalProgress } from '../components/PersonalProgress';
@@ -11,11 +11,10 @@ import { PriorityActions } from '../components/PriorityActions';
 import { Footer } from '../components/Footer';
 import { NetworkStats } from '../components/NetworkStats';
 import { Spinner } from '../components/ui/Spinner';
-import { TestErrorScenarios } from '../components/TestErrorScenarios';
 import { toast } from 'sonner';
 
 export function Dashboard() {
-  const { user, loading, error } = useAuth();
+  const { isLoaded, isSignedIn, user } = useUser();
   const location = useLocation();
 
   // Handle auth error from callback
@@ -28,7 +27,7 @@ export function Dashboard() {
     }
   }, [location.state]);
 
-  if (loading) {
+  if (!isLoaded) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <Spinner className="w-8 h-8 text-blue-500" />
@@ -37,16 +36,8 @@ export function Dashboard() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-red-500 text-lg">{error}</div>
-      </div>
-    );
-  }
-
   // Show repo selector if user is logged in but hasn't selected a repo
-  if (user && !user.trackedRepository) {
+  if (isSignedIn && user && !user.unsafeMetadata?.trackedRepository) {
     return <RepoSelector />;
   }
 
@@ -57,12 +48,11 @@ export function Dashboard() {
           {/* Hero Section */}
           <div className="space-y-6 pb-8 border-b border-white/10">
             <NetworkStats />
-            {!user && <GetStartedCard />}
-            <TestErrorScenarios />
+            {!isSignedIn && <GetStartedCard />}
           </div>
 
           {/* Main Content - Only show when user is authenticated */}
-          {user && (
+          {isSignedIn && user && (
             <div className="space-y-12">
               <ProjectOverview />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

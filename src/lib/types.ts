@@ -57,3 +57,29 @@ export interface RewardCalculation {
   tier: RewardTier;
   totalAllocated: number;
 }
+
+export interface ProcessedMetrics {
+  github: GitHubMetrics;
+  near: NEARMetrics;
+}
+
+export interface User {
+  id: string;
+  name: string | null;
+  avatar: string;
+  githubUsername: string;
+  metrics?: ProcessedMetrics;
+  rewardTier?: {
+    name: string;
+    color: string;
+    progress: number;
+    nextMilestone: number;
+  };
+}
+
+export interface GitHubUser {
+  id: number;
+  login: string;
+  name: string | null;
+  avatar_url: string;
+}

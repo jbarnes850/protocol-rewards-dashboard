@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Activity, GitCommit, GitPullRequest, Box, TrendingUp } from 'lucide-react';
 import { Tooltip } from './ui/Tooltip';
+import { useSDK } from '../providers/SDKProvider';
 
 interface ActivityItem {
   id: string;
@@ -18,88 +19,62 @@ interface ActivityItem {
   };
 }
 
-const mockProjects = [
-  {
-    name: 'quantum-relay',
-    description: 'High-performance networking layer',
-  },
-  {
-    name: 'aurora-bridge',
-    description: 'Cross-chain interoperability protocol',
-  },
-  {
-    name: 'horizon-sdk',
-    description: 'Developer toolkit and APIs',
-  },
-  {
-    name: 'nebula-vault',
-    description: 'Smart contract security framework',
-  },
-  {
-    name: 'prism-indexer',
-    description: 'Data indexing and querying service',
-  }
-];
-
-const mockDescriptions = {
-  commit: [
-    'Optimized validator node performance',
-    'Enhanced cross-shard messaging',
-    'Improved state sync mechanism',
-    'Updated consensus checkpointing',
-    'Implemented adaptive gas pricing'
-  ],
-  pr: [
-    'Added zero-knowledge proof validation',
-    'Implemented sharded storage',
-    'Enhanced validator selection algorithm',
-    'Improved cross-contract calls',
-    'Added dynamic resharding support'
-  ],
-  deployment: [
-    'Deployed contract updates to mainnet',
-    'Released new validator node version',
-    'Updated protocol parameters',
-    'Deployed security patches',
-    'Released performance optimizations'
-  ]
-};
-
 export function ActivityFeed() {
+  const { metrics, loading, error } = useSDK();
   const [activities, setActivities] = useState<ActivityItem[]>([]);
 
   useEffect(() => {
-    // Generate initial activities
-    const generateActivity = (): ActivityItem => {
-      const type = ['commit', 'pr', 'deployment'][Math.floor(Math.random() * 3)] as ActivityItem['type'];
-      const project = mockProjects[Math.floor(Math.random() * mockProjects.length)];
-      const descriptions = mockDescriptions[type];
-      
-      return {
-        id: Math.random().toString(36).substr(2, 9),
-        type,
-        project: project.name,
-        description: descriptions[Math.floor(Math.random() * descriptions.length)],
-        timestamp: new Date(Date.now() - Math.random() * 3600000),
-        impact: ['high', 'medium', 'low'][Math.floor(Math.random() * 3)] as ActivityItem['impact'],
+    if (!metrics) return;
+
+    // Generate activities based on metrics data
+    const newActivities: ActivityItem[] = [];
+
+    // Add commit activity
+    if (metrics.commits.count > 0) {
+      newActivities.push({
+        id: 'commit-' + Date.now(),
+        type: 'commit',
+        project: 'Repository',
+        description: `${metrics.commits.count} new commits with ${Math.floor(metrics.commits.authorDiversity * 100)}% author diversity`,
+        timestamp: new Date(),
+        impact: metrics.commits.score > 70 ? 'high' : metrics.commits.score > 40 ? 'medium' : 'low',
         metrics: {
-          additions: Math.floor(Math.random() * 500),
-          deletions: Math.floor(Math.random() * 200),
-          files: Math.floor(Math.random() * 10),
-          reviewers: Math.floor(Math.random() * 5),
-        },
-      };
-    };
+          additions: Math.floor(metrics.commits.frequency * 100),
+          deletions: Math.floor(metrics.commits.frequency * 50),
+          files: Math.floor(metrics.commits.count / 3)
+        }
+      });
+    }
 
-    setActivities(Array.from({ length: 5 }, generateActivity));
+    // Add PR activity
+    if (metrics.pullRequests.count > 0) {
+      newActivities.push({
+        id: 'pr-' + Date.now(),
+        type: 'pr',
+        project: 'Repository',
+        description: `${metrics.pullRequests.merged} merged PRs with ${Math.floor(metrics.pullRequests.reviewEngagement)} reviews per PR`,
+        timestamp: new Date(),
+        impact: metrics.pullRequests.score > 70 ? 'high' : metrics.pullRequests.score > 40 ? 'medium' : 'low',
+        metrics: {
+          reviewers: Math.floor(metrics.pullRequests.reviewEngagement)
+        }
+      });
+    }
 
-    // Add new activity every 5 seconds
-    const interval = setInterval(() => {
-      setActivities(prev => [generateActivity(), ...prev.slice(0, 4)]);
-    }, 5000);
+    // Add deployment activity if we have high scores
+    if (metrics.commits.score > 80 || metrics.pullRequests.score > 80) {
+      newActivities.push({
+        id: 'deployment-' + Date.now(),
+        type: 'deployment',
+        project: 'Repository',
+        description: 'High-impact changes detected with significant improvements',
+        timestamp: new Date(),
+        impact: 'high'
+      });
+    }
 
-    return () => clearInterval(interval);
-  }, []);
+    setActivities(newActivities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()));
+  }, [metrics]);
 
   const getImpactColor = (impact: ActivityItem['impact']) => {
     switch (impact) {
@@ -131,6 +106,26 @@ export function ActivityFeed() {
     if (hours < 24) return `${hours}h ago`;
     return `${Math.floor(hours / 24)}d ago`;
   };
+
+  if (error) {
+    return (
+      <div className="bg-white/5 rounded-xl p-6">
+        <p className="text-red-400">{error}</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="bg-white/5 rounded-xl p-6 animate-pulse">
+        <div className="space-y-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-24 bg-white/10 rounded-lg"></div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white/5 rounded-xl border border-white/10">
@@ -169,15 +164,13 @@ export function ActivityFeed() {
                       {getIcon(activity.type)}
                     </div>
                   </Tooltip>
-                  
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <Tooltip content={mockProjects.find(p => p.name === activity.project)?.description || ''}>
-                          <h3 className="font-medium text-white truncate hover:text-near-purple transition-colors">
-                            {activity.project}
-                          </h3>
-                        </Tooltip>
+                        <h3 className="font-medium text-white truncate hover:text-near-purple transition-colors">
+                          {activity.project}
+                        </h3>
                         <p className="text-sm text-gray-400 mt-1">
                           {activity.description}
                         </p>

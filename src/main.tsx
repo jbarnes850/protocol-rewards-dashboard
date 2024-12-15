@@ -6,7 +6,10 @@ import './index.css';
 // Validate environment variables at startup
 function validateEnvironment() {
   const requiredVars = {
-    VITE_GITHUB_CLIENT_ID: import.meta.env.VITE_GITHUB_CLIENT_ID,
+    VITE_CLERK_PUBLISHABLE_KEY: import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
+    VITE_GITHUB_API_URL: import.meta.env.VITE_GITHUB_API_URL,
+    VITE_GITHUB_SCOPES: import.meta.env.VITE_GITHUB_SCOPES,
+    VITE_GITHUB_ORG: import.meta.env.VITE_GITHUB_ORG,
   };
 
   const errors = Object.entries(requiredVars)
