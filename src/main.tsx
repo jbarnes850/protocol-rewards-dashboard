@@ -7,6 +7,7 @@ import './index.css';
 function validateEnvironment() {
   const requiredVars = {
     VITE_GITHUB_CLIENT_ID: import.meta.env.VITE_GITHUB_CLIENT_ID,
+    VITE_CLERK_PUBLISHABLE_KEY: import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
   };
 
   const errors = Object.entries(requiredVars)
