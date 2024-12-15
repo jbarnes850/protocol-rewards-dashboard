@@ -11,17 +11,24 @@ interface ExtendedProxyOptions extends ProxyOptions {
 
 const config = {
   server: {
-    port: 3000,
-    host: true,
+    port: 5173,
+    host: '0.0.0.0',
     strictPort: true,
-    cors: true,
+    cors: {
+      origin: [
+        'http://localhost:5173',
+        'https://github-oauth-app-tunnel-fl0b20p4.devinapps.com'
+      ],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      credentials: true
+    },
     hmr: {
       clientPort: 443,
-      host: 'github-oauth-dashboard-tunnel-zey7t2sj.devinapps.com'
+      host: 'github-oauth-app-tunnel-fl0b20p4.devinapps.com'
     },
     proxy: {
       '/_api/github/oauth/test-errors': {
-        target: 'http://localhost:3000',
+        target: process.env.VITE_TUNNEL_URL || 'http://localhost:5173',
         changeOrigin: true,
         secure: false,
         configure: (proxy: any, _options: Record<string, any>) => {
@@ -99,7 +106,7 @@ const config = {
         }
       } as ExtendedProxyOptions,
       '/_api': {
-        target: 'http://localhost:3000',
+        target: process.env.VITE_TUNNEL_URL || 'http://localhost:5173',
         changeOrigin: true,
         secure: false,
         configure: (proxy: any, _options: Record<string, any>) => {
@@ -125,6 +132,7 @@ const config = {
     'process.env.VITE_GITHUB_ORG': JSON.stringify(process.env.VITE_GITHUB_ORG),
     'process.env.VITE_GITHUB_CALLBACK_URL': JSON.stringify(process.env.VITE_GITHUB_CALLBACK_URL),
     'process.env.VITE_GITHUB_SCOPES': JSON.stringify(process.env.VITE_GITHUB_SCOPES),
+    'process.env.VITE_CLERK_PUBLISHABLE_KEY': JSON.stringify(process.env.VITE_CLERK_PUBLISHABLE_KEY),
   },
 };
 
