@@ -11,16 +11,17 @@ interface ExtendedProxyOptions extends ProxyOptions {
 
 const config = {
   server: {
-    port: process.env.PORT as unknown as number || 5173,
+    port: 3000,
     host: true,
     strictPort: true,
+    cors: true,
     hmr: {
       clientPort: 443,
-      host: 'github-oauth-app-tunnel-iqfqqfvf.devinapps.com'
+      host: 'github-oauth-dashboard-tunnel-zey7t2sj.devinapps.com'
     },
     proxy: {
       '/_api/github/oauth/test-errors': {
-        target: 'http://localhost:5173',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false,
         configure: (proxy: any, _options: Record<string, any>) => {
@@ -98,9 +99,14 @@ const config = {
         }
       } as ExtendedProxyOptions,
       '/_api': {
-        target: 'http://localhost:5173',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false,
+        configure: (proxy: any, _options: Record<string, any>) => {
+          proxy.on('error', (err: Error) => {
+            console.log('proxy error', err);
+          });
+        }
       }
     }
   },

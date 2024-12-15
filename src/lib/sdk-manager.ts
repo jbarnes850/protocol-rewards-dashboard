@@ -36,7 +36,7 @@ export class SDKManager {
     };
   }
 
-  async calculateRewards(metrics: GitHubMetrics, projectId?: string | null): Promise<RewardCalculation> {
+  async calculateRewards(metrics: GitHubMetrics): Promise<RewardCalculation> {
     if (!this.initialized || !this.sdk) {
       throw new Error('SDK not initialized. Call initialize() first.');
     }

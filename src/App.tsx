@@ -5,10 +5,10 @@ import { Header } from './components/Header';
 import { Dashboard } from './pages/Dashboard';
 import { AuthCallback } from './pages/AuthCallback';
 import { ThemeProvider } from './providers/ThemeProvider';
-import { AuthProvider } from './providers/AuthProvider';
 import { SDKProvider } from './providers/SDKProvider';
 import { TooltipProvider } from '@radix-ui/react-tooltip';
 import { SEO } from './components/SEO';
+import { CustomClerkProvider } from './providers/ClerkProvider';
 
 function App() {
   return (
@@ -16,7 +16,7 @@ function App() {
       <SEO />
       <BrowserRouter>
         <ThemeProvider>
-          <AuthProvider>
+          <CustomClerkProvider>
             <SDKProvider>
               <TooltipProvider>
                 <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900">
@@ -39,7 +39,7 @@ function App() {
                 </div>
               </TooltipProvider>
             </SDKProvider>
-          </AuthProvider>
+          </CustomClerkProvider>
         </ThemeProvider>
       </BrowserRouter>
     </HelmetProvider>
