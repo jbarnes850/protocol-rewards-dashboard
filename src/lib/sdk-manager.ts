@@ -1,31 +1,61 @@
 import { NEARProtocolRewardsSDK } from './real-sdk';
 import type { GitHubMetrics, NEARMetrics, RewardCalculation } from './types';
 
+type TokenProvider = () => Promise<string>;
+
 export class SDKManager {
   private sdk: NEARProtocolRewardsSDK | null = null;
   private token: string | null = null;
   private projectId: string | null = null;
+  private tokenProvider: TokenProvider | null = null;
   private initialized = false;
 
   constructor() {
     // Initialize with null values, will be set during initialize()
   }
 
-  async initialize(token: string, projectId?: string | null): Promise<void> {
-    if (!this.initialized || token !== this.token || projectId !== this.projectId) {
-      this.token = token;
-      this.projectId = projectId || 'default';
-      this.sdk = new NEARProtocolRewardsSDK({
-        projectId: this.projectId,
-        token: this.token
-      });
-      this.initialized = true;
+  async initialize(tokenOrProvider: string | TokenProvider, projectId?: string | null): Promise<void> {
+    try {
+      let newToken: string;
+
+      if (typeof tokenOrProvider === 'string') {
+        newToken = tokenOrProvider;
+      } else {
+        this.tokenProvider = tokenOrProvider;
+        newToken = await tokenOrProvider();
+      }
+
+      if (!this.initialized || newToken !== this.token || projectId !== this.projectId) {
+        this.token = newToken;
+        this.projectId = projectId || 'default';
+        this.sdk = new NEARProtocolRewardsSDK({
+          projectId: this.projectId,
+          token: this.token
+        });
+        this.initialized = true;
+      }
+    } catch (error) {
+      console.error('Failed to initialize SDK:', error);
+      throw new Error('Failed to initialize SDK with GitHub token');
     }
   }
 
   async getUserMetrics(projectId?: string | null): Promise<GitHubMetrics> {
     if (!this.initialized || !this.sdk) {
       throw new Error('SDK not initialized. Call initialize() first.');
+    }
+
+    // Refresh token if we have a provider
+    if (this.tokenProvider) {
+      try {
+        const newToken = await this.tokenProvider();
+        if (newToken !== this.token) {
+          await this.initialize(this.tokenProvider, this.projectId);
+        }
+      } catch (error) {
+        console.error('Failed to refresh token:', error);
+        throw new Error('Failed to refresh GitHub token');
+      }
     }
 
     const metrics = await this.sdk.getMetrics(projectId || this.projectId || 'default');

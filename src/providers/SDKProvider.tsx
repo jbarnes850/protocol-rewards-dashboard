@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { SDKManager } from '../lib/sdk-manager';
-import { useAuth } from './AuthProvider';
-import { GitHubAuth } from '../lib/github-auth';
+import { useUser } from '@clerk/clerk-react';
 import type { GitHubMetrics, RewardCalculation } from '../lib/types';
 import { toast } from 'sonner';
+import { useGitHubToken } from '../lib/clerk-github';
 
 interface SDKContextValue {
   sdkManager: SDKManager | null;
@@ -22,12 +22,22 @@ export function SDKProvider({ children }: { children: React.ReactNode }) {
   const [rewards, setRewards] = useState<RewardCalculation | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { user, isGitHubConnected } = useAuth();
-  const githubAuth = GitHubAuth.getInstance();
+  const { user, isLoaded } = useUser();
+  const { getToken, isLoaded: isTokenLoaded } = useGitHubToken();
 
   const refreshData = async () => {
-    if (!user || !isGitHubConnected) {
-      setError('Please connect your GitHub account to view metrics.');
+    if (!isLoaded || !user) {
+      setError('Please sign in to view metrics.');
+      setMetrics(null);
+      setRewards(null);
+      return;
+    }
+
+    const trackedRepo = user.unsafeMetadata.trackedRepository as string;
+    if (!trackedRepo) {
+      setError('Please select a repository to track.');
+      setMetrics(null);
+      setRewards(null);
       return;
     }
 
@@ -35,22 +45,24 @@ export function SDKProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       setError(null);
 
-      const token = await githubAuth.getAccessToken();
+      const token = await getToken();
       if (!token) {
-        throw new Error('GitHub token not found');
+        throw new Error('Failed to retrieve GitHub token');
       }
 
-      const repo = githubAuth.getTrackedRepository()?.full_name;
-      await sdkManager.initialize(token, repo);
+      await sdkManager.initialize(token, trackedRepo);
       const githubMetrics = await sdkManager.getUserMetrics();
       const rewardsData = await sdkManager.calculateRewards(githubMetrics);
 
       setMetrics(githubMetrics);
       setRewards(rewardsData);
+      setError(null);
     } catch (error) {
       console.error('Error fetching metrics:', error);
       const message = error instanceof Error ? error.message : 'Failed to fetch metrics';
       setError(message);
+      setMetrics(null);
+      setRewards(null);
       toast.error(message);
     } finally {
       setLoading(false);
@@ -58,10 +70,12 @@ export function SDKProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    refreshData();
-    const interval = setInterval(refreshData, 5 * 60 * 1000); // Refresh every 5 minutes
-    return () => clearInterval(interval);
-  }, [user, isGitHubConnected]);
+    if (isLoaded && isTokenLoaded) {
+      refreshData();
+      const interval = setInterval(refreshData, 5 * 60 * 1000); // Refresh every 5 minutes
+      return () => clearInterval(interval);
+    }
+  }, [isLoaded, isTokenLoaded, user?.unsafeMetadata.trackedRepository]);
 
   const value: SDKContextValue = {
     sdkManager,
