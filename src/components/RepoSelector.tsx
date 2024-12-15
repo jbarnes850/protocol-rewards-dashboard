@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../providers/AuthProvider';
 import { Search, Loader2, Github, Shield, ExternalLink } from 'lucide-react';
-import { GitHubAuth } from '../lib/github-auth';
+import { useUser } from '@clerk/clerk-react';
+import { useGitHubToken } from '../lib/clerk-github';
 
 interface Repository {
   id: number;
@@ -14,20 +14,30 @@ interface Repository {
 }
 
 export function RepoSelector() {
-  const { user, setTrackedRepository } = useAuth();
+  const { user, isLoaded: userLoaded } = useUser();
+  const { getToken, isLoaded: tokenLoaded } = useGitHubToken();
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRepo, setSelectedRepo] = useState<number | null>(null);
-  const [requestingPermissions, setRequestingPermissions] = useState(false);
-  const auth = GitHubAuth.getInstance();
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchRepos = async () => {
+      if (!userLoaded || !tokenLoaded) return;
+
       try {
-        const response = await fetch('https://api.github.com/user/repos?sort=updated', {
+        setLoading(true);
+        setError(null);
+
+        const token = await getToken();
+        if (!token) {
+          throw new Error('GitHub token not available');
+        }
+
+        const response = await fetch('https://api.github.com/user/repos?sort=updated&visibility=all', {
           headers: {
-            'Authorization': `Bearer ${auth.getAccessToken()}`,
+            'Authorization': `Bearer ${token}`,
             'Accept': 'application/vnd.github.v3+json'
           }
         });
@@ -43,15 +53,17 @@ export function RepoSelector() {
 
         const data = await response.json();
         setRepositories(data);
+        setError(null);
       } catch (error) {
         console.error('Failed to fetch repositories:', error);
+        setError(error instanceof Error ? error.message : 'Failed to fetch repositories');
       } finally {
         setLoading(false);
       }
     };
 
     fetchRepos();
-  }, []);
+  }, [userLoaded, tokenLoaded]);
 
   const filteredRepos = repositories.filter(repo =>
     repo.full_name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -61,39 +73,39 @@ export function RepoSelector() {
     try {
       setSelectedRepo(repo.id);
 
-      // Check if we need additional permissions for private repos
-      if (repo.private && !auth.hasScope('repo')) {
-        setRequestingPermissions(true);
-        try {
-          await auth.requestPrivateRepoAccess();
-        } finally {
-          setRequestingPermissions(false);
-        }
-        return;
-      }
-
       const confirmed = window.confirm(
         `Are you sure you want to track ${repo.full_name}? This will be your primary repository for the rewards program.`
       );
 
       if (confirmed) {
-        await auth.setTrackedRepository(repo.full_name);
-        await setTrackedRepository(repo.full_name);
-      } else {
-        setSelectedRepo(null);
+        try {
+          await user?.update({
+            unsafeMetadata: {
+              trackedRepository: {
+                name: repo.full_name,
+                private: repo.private
+              }
+            }
+          });
+        } catch (error) {
+          console.error('Error updating user metadata:', error);
+          throw error;
+        }
       }
+
+      setSelectedRepo(null);
     } catch (error) {
       console.error('Failed to set repository:', error);
+      setError(error instanceof Error ? error.message : 'Failed to set repository');
       setSelectedRepo(null);
     }
   };
 
-  if (!user?.githubUsername) return null;
+  if (!userLoaded || !user) return null;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-near-black py-12 px-4">
       <div className="max-w-2xl mx-auto">
-        {/* Welcome Section */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-4">
             Welcome to NEAR Protocol Rewards
@@ -103,9 +115,7 @@ export function RepoSelector() {
           </p>
         </div>
 
-        {/* Main Selection Card */}
         <div className="bg-white/5 rounded-xl border border-white/10 backdrop-blur-sm shadow-2xl">
-          {/* Header Section */}
           <div className="p-6 border-b border-white/10">
             <h2 className="text-xl font-semibold text-white mb-2">Select Your Repository</h2>
             <p className="text-gray-400">
@@ -114,7 +124,6 @@ export function RepoSelector() {
             </p>
           </div>
 
-          {/* Search Section */}
           <div className="p-6 border-b border-white/10">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -131,15 +140,23 @@ export function RepoSelector() {
             </div>
           </div>
 
-          {/* Repository List */}
           <div className="p-6">
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-near-purple" />
               </div>
+            ) : error ? (
+              <div className="text-center py-8">
+                <p className="text-red-400">{error}</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="text-near-purple hover:text-near-purple/80 text-sm mt-2"
+                >
+                  Try again
+                </button>
+              </div>
             ) : (
               <>
-                {/* Repository count */}
                 <div className="text-sm text-gray-400 mb-4">
                   {filteredRepos.length === 0 ? (
                     searchQuery ?
@@ -162,8 +179,7 @@ export function RepoSelector() {
                                   ? 'bg-near-purple/20 border-near-purple'
                                   : 'bg-white/5 border-white/10 hover:bg-near-purple/10 hover:border-near-purple/50'}
                                 group`}
-                      disabled={selectedRepo !== null && selectedRepo !== repo.id ||
-                              (repo.private && !auth.hasScope('repo') && requestingPermissions)}
+                      disabled={selectedRepo !== null && selectedRepo !== repo.id}
                     >
                       <div className="flex items-center justify-between">
                         <div>
@@ -174,16 +190,7 @@ export function RepoSelector() {
                             {repo.private && (
                               <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full flex items-center gap-1">
                                 <Shield className="w-3 h-3" />
-                                {requestingPermissions ? (
-                                  <>
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                    Requesting Access...
-                                  </>
-                                ) : (
-                                  <>
-                                    Private {!auth.hasScope('repo') && '(Requires Permission)'}
-                                  </>
-                                )}
+                                Private
                               </span>
                             )}
                           </h3>
@@ -216,7 +223,6 @@ export function RepoSelector() {
             )}
           </div>
 
-          {/* Privacy Notice */}
           <div className="p-6 border-t border-white/10 bg-white/5">
             <div className="flex items-start gap-3">
               <Shield className="w-5 h-5 text-near-purple mt-1" />
