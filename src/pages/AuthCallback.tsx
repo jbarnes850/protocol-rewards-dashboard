@@ -6,21 +6,22 @@ import { Spinner } from '../components/ui/Spinner';
 export function AuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const { client } = useClerk();
 
   useEffect(() => {
     const handleAuth = async () => {
       try {
-        // Handle Clerk OAuth callback
+        if (!isLoaded) return;
+        
         const handshakeCode = searchParams.get('code');
         if (!handshakeCode) {
           throw new Error('No code provided');
         }
 
-        // Clerk handles the OAuth flow automatically
-        // Just redirect to dashboard after verification
+        // Wait for user to be available
         if (user) {
+          console.log('User authenticated, redirecting to dashboard');
           navigate('/', { replace: true });
         }
       } catch (error) {
@@ -33,11 +34,11 @@ export function AuthCallback() {
     };
 
     handleAuth();
-  }, [searchParams, navigate, user, client]);
+  }, [searchParams, navigate, user, isLoaded, client]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-      <Spinner className="w-8 h-8 text-blue-500" />
+      <Spinner className="w-8 h-8 text-near-purple" />
       <div className="text-lg text-gray-400">
         Completing authentication...
       </div>

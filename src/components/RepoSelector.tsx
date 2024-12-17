@@ -22,10 +22,40 @@ export function RepoSelector() {
   const { user, isLoaded: userLoaded } = useUser();
   const { getToken, isLoaded: tokenLoaded } = useGitHubToken();
   const [repositories, setRepositories] = useState<Repository[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRepo, setSelectedRepo] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    console.log('Auth states:', {
+      userLoaded,
+      tokenLoaded,
+      hasUser: !!user,
+      loading
+    });
+  }, [userLoaded, tokenLoaded, user, loading]);
+
+  // Only show loading spinner when actually loading
+  if (!userLoaded || !tokenLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 
+          className="w-8 h-8 animate-spin text-near-purple" 
+          role="progressbar"
+          aria-label="Initializing..."
+        />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen text-white">
+        Please sign in to continue
+      </div>
+    );
+  }
 
   // Fetch repositories only if no tracked repository
   const fetchRepos = useCallback(async () => {
@@ -141,8 +171,6 @@ export function RepoSelector() {
       setSelectedRepo(null);
     }
   };
-
-  if (!userLoaded || !user) return null;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-near-black py-12 px-4">
