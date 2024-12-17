@@ -13,6 +13,11 @@ interface Repository {
   updated_at: string;
 }
 
+interface TrackedRepository {
+  name: string;
+  private: boolean;
+}
+
 export function RepoSelector() {
   const { user, isLoaded: userLoaded } = useUser();
   const { getToken, isLoaded: tokenLoaded } = useGitHubToken();
@@ -30,55 +35,33 @@ export function RepoSelector() {
     setError(null);
 
     try {
-      // Get GitHub token - don't wrap errors, let them propagate as-is
-      const token = await getToken().catch(error => {
-        setLoading(false); // Clear loading before setting error
-        throw error; // Re-throw to be caught by outer catch
-      });
+      console.log('Fetching GitHub token...');
+      const token = await getToken();
 
-      if (!token) {
-        setLoading(false); // Clear loading before setting error
-        setError('Unauthorized');
-        return;
-      }
-
-      const response = await fetch('https://api.github.com/user/repos?sort=updated&visibility=all', {
+      console.log('Making GitHub API request...');
+      const response = await fetch('https://api.github.com/user/repos?sort=updated&visibility=all&per_page=100', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/vnd.github.v3+json'
         }
       });
 
-      if (response.status === 403 && response.headers.get('X-RateLimit-Remaining') === '0') {
-        const resetTime = response.headers.get('X-RateLimit-Reset');
-        setLoading(false); // Clear loading before setting error
-        setError(`Rate limit exceeded. Resets at ${new Date(Number(resetTime) * 1000)}`);
-        return;
-      }
-
+      console.log('GitHub API response status:', response.status);
+      
       if (!response.ok) {
-        // For 401 responses, set "Unauthorized"
-        if (response.status === 401) {
-          setLoading(false); // Clear loading before setting error
-          setError('Unauthorized');
-          return;
-        }
-        // For other errors, get the message from the response
         const errorData = await response.json().catch(() => ({ message: response.statusText }));
-        setLoading(false); // Clear loading before setting error
-        setError(errorData.message || response.statusText);
-        return;
+        throw new Error(`GitHub API error: ${errorData.message || response.statusText}`);
       }
 
       const data = await response.json();
+      console.log(`Found ${data.length} repositories`);
       setRepositories(data);
       setError(null);
-      setLoading(false); // Clear loading after success
     } catch (error) {
-      console.error('Failed to fetch repositories:', error);
-      setLoading(false); // Clear loading before setting error
-      // Set error message directly from the error without wrapping
+      console.error('Repository fetch error:', error);
       setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
     }
   }, [userLoaded, tokenLoaded, user?.unsafeMetadata?.trackedRepository, getToken]);
 
@@ -87,6 +70,7 @@ export function RepoSelector() {
     if (!userLoaded || !user?.unsafeMetadata?.trackedRepository) return;
 
     const trackedRepo = user.unsafeMetadata.trackedRepository;
+    
     if (typeof trackedRepo === 'string') {
       // Handle legacy format
       setRepositories([{
@@ -101,19 +85,17 @@ export function RepoSelector() {
       return;
     }
 
-    if (typeof trackedRepo === 'object' && trackedRepo.name) {
-      // Handle new format
-      setRepositories([{
-        id: 0,
-        name: trackedRepo.name.split('/')[1] || '',
-        full_name: trackedRepo.name,
-        private: trackedRepo.private || false,
-        html_url: `https://github.com/${trackedRepo.name}`,
-        updated_at: new Date().toISOString()
-      }]);
-      setLoading(false);
-      return;
-    }
+    // Type assertion for the object format
+    const repoData = trackedRepo as TrackedRepository;
+    setRepositories([{
+      id: 0,
+      name: repoData.name.split('/')[1] || '',
+      full_name: repoData.name,
+      private: repoData.private,
+      html_url: `https://github.com/${repoData.name}`,
+      updated_at: new Date().toISOString()
+    }]);
+    setLoading(false);
   }, [userLoaded, user?.unsafeMetadata?.trackedRepository]);
 
   // Call fetchRepos when component mounts and dependencies are ready
