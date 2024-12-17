@@ -12,16 +12,28 @@ export function AuthCallback() {
   useEffect(() => {
     const handleAuth = async () => {
       try {
-        if (!isLoaded) return;
+        console.log('Auth callback initiated', {
+          hasCode: !!searchParams.get('code'),
+          isLoaded,
+          hasUser: !!user
+        });
+
+        if (!isLoaded) {
+          console.log('Clerk still loading...');
+          return;
+        }
         
         const handshakeCode = searchParams.get('code');
         if (!handshakeCode) {
+          console.error('No handshake code found in URL');
           throw new Error('No code provided');
         }
 
+        console.log('Handshake code found, waiting for user...');
+
         // Wait for user to be available
         if (user) {
-          console.log('User authenticated, redirecting to dashboard');
+          console.log('User authenticated successfully, redirecting...');
           navigate('/', { replace: true });
         }
       } catch (error) {
