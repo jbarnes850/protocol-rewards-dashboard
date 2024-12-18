@@ -27,16 +27,30 @@ export function useGitHubToken(): GitHubTokenHook {
         throw new Error('No active session found');
       }
       
-      const token = await clerk.session.getToken({ template: 'github-token' });
-      if (!token) {
+      // Get the raw token from Clerk
+      const tokenResponse = await clerk.session.getToken({ template: 'github-token' });
+      if (!tokenResponse) {
         clearCache();
         console.error('No token returned from Clerk');
         throw new Error('Failed to retrieve GitHub token from Clerk');
       }
 
-      console.log('Successfully retrieved GitHub token');
-      cachedToken = token;
-      return token;
+      // Parse the JWT to get the actual GitHub token
+      try {
+        const tokenData = JSON.parse(atob(tokenResponse.split('.')[1]));
+        const githubToken = tokenData.github_token;
+        
+        if (!githubToken) {
+          throw new Error('No GitHub token found in JWT payload');
+        }
+
+        console.log('Successfully retrieved GitHub token');
+        cachedToken = githubToken;
+        return githubToken;
+      } catch (parseError) {
+        console.error('Error parsing token:', parseError);
+        throw new Error('Invalid token format received from Clerk');
+      }
     } catch (error) {
       clearCache();
       console.error('Error getting GitHub token:', error);
