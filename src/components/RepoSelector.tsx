@@ -21,12 +21,13 @@ interface TrackedRepository {
 
 export function RepoSelector() {
   const { user, isLoaded: userLoaded } = useUser();
-  const { getToken, isLoaded: tokenLoaded } = useGitHubToken();
+  const { getToken, isLoaded: tokenLoaded, clearCache } = useGitHubToken();
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRepo, setSelectedRepo] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     console.log('Auth states:', {
@@ -81,6 +82,7 @@ export function RepoSelector() {
       });
 
       if (!response.ok) {
+        clearCache(); // Clear token cache on API error
         const errorData = await response.json().catch(() => ({ message: response.statusText }));
         throw new Error(`GitHub API error: ${errorData.message || response.statusText}`);
       }
@@ -88,14 +90,60 @@ export function RepoSelector() {
       const data = await response.json();
       console.log(`Found ${data.length} repositories`);
       setRepositories(data);
+      setRetryCount(0); // Reset retry count on success
     } catch (error) {
       console.error('Repository fetch error:', error);
       setError(error instanceof Error ? error.message : String(error));
       toast.error('Failed to fetch repositories');
+      
+      // Increment retry count
+      setRetryCount(prev => prev + 1);
+      
+      // If we've retried too many times, clear everything
+      if (retryCount >= 3) {
+        clearCache();
+        // Force sign out if we keep failing
+        window.location.href = '/'; // This will trigger a full page reload
+      }
     } finally {
       setLoading(false);
     }
-  }, [userLoaded, tokenLoaded, user?.unsafeMetadata?.trackedRepository, getToken]);
+  }, [userLoaded, tokenLoaded, user?.unsafeMetadata?.trackedRepository, getToken, clearCache, retryCount]);
+
+  // Add a manual retry button
+  const handleRetry = useCallback(() => {
+    clearCache();
+    fetchRepos();
+  }, [clearCache, fetchRepos]);
+
+  // Add a force logout button when errors occur
+  const handleForceLogout = useCallback(() => {
+    clearCache();
+    window.location.href = '/';
+  }, [clearCache]);
+
+  // Show error state with retry and logout options
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 p-6">
+        <div className="text-red-500">{error}</div>
+        <div className="flex gap-4">
+          <button
+            onClick={handleRetry}
+            className="px-4 py-2 bg-near-purple text-white rounded hover:bg-near-purple/80"
+          >
+            Retry
+          </button>
+          <button
+            onClick={handleForceLogout}
+            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Display tracked repository from user metadata
   useEffect(() => {
@@ -212,24 +260,7 @@ export function RepoSelector() {
           </div>
 
           <div className="p-6">
-            {error ? (
-              <div className="text-center py-8">
-                <div className="text-red-500 mb-4" data-testid="error-message">
-                  {error}
-                </div>
-                <button
-                  onClick={() => {
-                    setError(null);
-                    fetchRepos();
-                  }}
-                  className="px-4 py-2 bg-near-purple text-white rounded-lg
-                           hover:bg-near-purple/80 transition-colors"
-                  data-testid="retry-button"
-                >
-                  Try again
-                </button>
-              </div>
-            ) : loading ? (
+            {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2
                   className="w-8 h-8 animate-spin text-near-purple"
