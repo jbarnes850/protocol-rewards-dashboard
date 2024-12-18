@@ -12,7 +12,7 @@ export function CustomClerkProvider({ children }: CustomClerkProviderProps) {
       publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
-      fallbackRedirectUrl="/"
+      signInFallbackRedirectUrl="/"
       redirectUrl={import.meta.env.VITE_CLERK_OAUTH_CALLBACK_URL}
       appearance={{
         baseTheme: dark,
