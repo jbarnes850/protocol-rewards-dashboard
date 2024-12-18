@@ -74,23 +74,35 @@ export function RepoSelector() {
       }
 
       console.log('Making GitHub API request...');
+      console.log('Token format check:', {
+        length: token.length,
+        prefix: token.substring(0, 4),
+        isBearer: token.startsWith('gho_') // GitHub OAuth tokens start with gho_
+      });
+
       const response = await fetch('https://api.github.com/user/repos?sort=updated&visibility=all&per_page=100', {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github.v3+json'
+          'Authorization': `token ${token}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'X-GitHub-Api-Version': '2022-11-28'
         }
       });
 
       if (!response.ok) {
-        clearCache(); // Clear token cache on API error
+        clearCache();
         const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        console.error('GitHub API Error Details:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
         throw new Error(`GitHub API error: ${errorData.message || response.statusText}`);
       }
 
       const data = await response.json();
       console.log(`Found ${data.length} repositories`);
       setRepositories(data);
-      setRetryCount(0); // Reset retry count on success
+      setRetryCount(0);
     } catch (error) {
       console.error('Repository fetch error:', error);
       setError(error instanceof Error ? error.message : String(error));
