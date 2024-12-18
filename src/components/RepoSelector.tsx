@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Search, Loader2, Github, Shield, ExternalLink } from 'lucide-react';
 import { useUser } from '@clerk/clerk-react';
 import { useGitHubToken } from '../lib/clerk-github';
+import { toast } from 'sonner';
 
 interface Repository {
   id: number;
@@ -67,6 +68,9 @@ export function RepoSelector() {
     try {
       console.log('Fetching GitHub token...');
       const token = await getToken();
+      if (!token) {
+        throw new Error('No GitHub token available');
+      }
 
       console.log('Making GitHub API request...');
       const response = await fetch('https://api.github.com/user/repos?sort=updated&visibility=all&per_page=100', {
@@ -76,8 +80,6 @@ export function RepoSelector() {
         }
       });
 
-      console.log('GitHub API response status:', response.status);
-      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: response.statusText }));
         throw new Error(`GitHub API error: ${errorData.message || response.statusText}`);
@@ -86,10 +88,10 @@ export function RepoSelector() {
       const data = await response.json();
       console.log(`Found ${data.length} repositories`);
       setRepositories(data);
-      setError(null);
     } catch (error) {
       console.error('Repository fetch error:', error);
       setError(error instanceof Error ? error.message : String(error));
+      toast.error('Failed to fetch repositories');
     } finally {
       setLoading(false);
     }

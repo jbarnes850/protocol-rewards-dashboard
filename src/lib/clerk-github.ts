@@ -17,8 +17,11 @@ export function useGitHubToken(): GitHubTokenHook {
       }
 
       console.log('Requesting GitHub token from Clerk...');
-      const token = await clerk.session?.getToken({ template: 'github-token' });
+      if (!clerk.session) {
+        throw new Error('No active session found');
+      }
       
+      const token = await clerk.session.getToken({ template: 'github-token' });
       if (!token) {
         console.error('No token returned from Clerk');
         throw new Error('Failed to retrieve GitHub token from Clerk');

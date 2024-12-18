@@ -15,7 +15,9 @@ export function AuthCallback() {
         console.log('Auth callback initiated', {
           hasCode: !!searchParams.get('code'),
           isLoaded,
-          hasUser: !!user
+          hasUser: !!user,
+          searchParams: Object.fromEntries(searchParams.entries()),
+          origin: window.location.origin
         });
 
         if (!isLoaded) {
@@ -29,12 +31,27 @@ export function AuthCallback() {
           throw new Error('No code provided');
         }
 
-        console.log('Handshake code found, waiting for user...');
-
         // Wait for user to be available
         if (user) {
-          console.log('User authenticated successfully, redirecting...');
-          navigate('/', { replace: true });
+          try {
+            // Get the first active session
+            const activeSessions = await client.sessions;
+            const activeSession = activeSessions[0];
+            if (!activeSession) {
+              throw new Error('No active session found');
+            }
+            
+            const token = await activeSession.getToken({ template: 'github-token' });
+            if (!token) {
+              throw new Error('Failed to retrieve GitHub token');
+            }
+            
+            console.log('User authenticated successfully, redirecting...');
+            navigate('/', { replace: true });
+          } catch (tokenError) {
+            console.error('Token retrieval error:', tokenError);
+            throw new Error('Failed to retrieve GitHub token');
+          }
         }
       } catch (error) {
         console.error('Auth error:', error);

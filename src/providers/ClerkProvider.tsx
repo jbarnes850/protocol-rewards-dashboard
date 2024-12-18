@@ -10,6 +10,11 @@ export function CustomClerkProvider({ children }: CustomClerkProviderProps) {
   return (
     <ClerkProvider
       publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
+      signInUrl={import.meta.env.VITE_CLERK_SIGN_IN_URL}
+      signUpUrl={import.meta.env.VITE_CLERK_SIGN_UP_URL}
+      afterSignInUrl={import.meta.env.VITE_CLERK_AFTER_SIGN_IN_URL}
+      afterSignUpUrl={import.meta.env.VITE_CLERK_AFTER_SIGN_UP_URL}
+      redirectUrl={import.meta.env.VITE_CLERK_OAUTH_CALLBACK_URL}
       appearance={{
         baseTheme: dark,
         elements: {
